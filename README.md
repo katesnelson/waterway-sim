@@ -9,7 +9,7 @@ and used to produce simulations reported in
 
 >Nelson, K. S., Camp, J. V., Philip, C. E., & Abkowitz, M. D. (2017). Agent-Based Model of Navigable Inland Waterway Tow Operation Procedures. Transportation Research Record: Journal of the Transportation Research Board, (2611), 11-18.
 
-While the model visulizes the waterway as a straight line segment, and does not currently include any physical waterway, ship, or hydrologic parameters, it does allow for some customization by location (locations of locks and dams and bridges) and includes a set of modifiable parameters that are revelvant to tow operation decisions made during extreme weather events and that are influenced by official Waterway Action Plan guidance documents.
+The model uses safe distance-based traffic logic (continous distance NOT discrete patch-based distance), and adds logic for navigation of locks and dams, passing procedures, one-way zone passage procedures, and bridge passage navigation procedures. The model interface includes a set of modifiable parameters that are revelvant to tow operation decisions made during extreme weather events and that are influenced by official Waterway Action Plan (WAP) guidance documents. As the original purpose of the model was to determine the possible influence of WAP-based desicions this model does not currently include any parameters that modify tow operations based on physical characteristics of the waterway or ships, or hydrological conditions. The model visualizes the waterway as a straight line segment but does allow for some customization by location (rivermile of locks and dams and bridges). 
 Also included in the repo are an updated version of the model and R scripts used in processing simulation data in a validation study.
 
 To run model:
