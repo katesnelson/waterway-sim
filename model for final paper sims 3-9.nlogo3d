@@ -1,0 +1,3075 @@
+extensions [time csv xw]
+globals  [tick-datetime day-length day month previous-time-of-day runtime Bridges Bridge-eval Bridges-2 Dams Segments Locks Tributary Major-Harbor Fleet-size Downstream-vessels-available Upstream-vessels-available Harbor-vessels-available Downstream-shipping-request Upstream-shipping-request Harbor-shipping-request previous-stage casualties barges-delivered] ;;global variables and agent patchsets
+breed [barges barge] ;;barges as a breed
+breed [tows tow] ;; tow ships as one breed
+breed [dammgrs dammgr] ;;dam manager as a breed
+breed [lockmgrs lockmgr] ;;lock manager as a breed
+barges-own [commodity origin destination status previous-status];;barge variables from shipping requests
+tows-own [speed original-speed last-speed horsepower load connected-barges  arrival-time arrival-time-oneway count-down status previous-status location stage1 flow1 birthday deathday transit-time];; tow ship variables
+dammgrs-own [damname inflow project-stage storage previous-storage tw-stage power ]
+lockmgrs-own [lockname locktime barge-allowance]
+patches-own [channel-width bend depth flow river-stage action-class previous-action-class ] ;;characteristics of river to use later
+
+
+to startup                                                            ;;setup a tab with multi-choosers for selection of many lock-and-dam and bridge locations
+  xw:clear-all
+  xw:create-tab "tab-1"
+  [xw:set-title "River Setup Parameters"
+  xw:create-multi-chooser "Bridge Locations" [
+    xw:set-label "River Mile of Bridges"
+    xw:set-items [1  2  3  4  5  6  7  8  9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26  27  28  29  30  31  32  33  34  35  36  37  38  39  40  41  42  43  44  45  46  47  48  49  50  51  52  53  54  55  56  57  58  59  60  61  62  63  64  65  66  67  68  69  70  71  72  73  74  75  76  77  78  79  80  81  82  83  84  85  86  87  88  89  90  91  92  93  94  95  96  97  98  99  100  101  102  103  104  105  106  107  108  109  110  111  112  113  114  115  116  117  118  119  120  121  122  123  124  125  126  127  128  129  130  131  132  133  134  135  136  137  138  139  140  141  142  143  144  145  146  147  148  149  150  151  152  153  154  155  156  157  158  159  160  161  162  163  164  165  166  167  168  169  170  171  172  173  174  175  176  177  178  179  180  181  182  183  184  185  186  187  188  189  190  191  192  193  194  195  196  197  198  199  200  201  202  203  204  205  206  207  208  209  210  211  212  213  214  215  216  217  218  219  220  221  222  223  224  225  226  227  228  229  230  231  232  233  234  235  236  237  238  239  240  241  242  243  244  245  245  246  247  248  249  250  251  252  253  254  255  256  257  258  259  260  261  262  263  264  265  266  267  268  269  270  271  272  273  274  275  276  277  278  279  280  281  282  283  284  285  286  287  288  289  290  291  292  293  294  295  296  297  298  299  300  301  302  303  304  305  306  307  308  309  310  311  312  313  314  315  316  317  318  319  320
+
+]   xw:set-selected-items [28 30 63 89 126 128 130 158 182 185 186 189 190 191 192 194 196 200 212 239 278 308]
+    xw:set-height 750
+  ]
+  xw:create-multi-chooser "Dam Locations" [
+    xw:set-label "River Mile of Dams"
+    xw:set-items [ 6  7  8  9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26  27  28  29  30  31  32  33  34  35  36  37  38  39  40  41  42  43  44  45  46  47  48  49  50  51  52  53  54  55  56  57  58  59  60  61  62  63  64  65  66  67  68  69  70  71  72  73  74  75  76  77  78  79  80  81  82  83  84  85  86  87  88  89  90  91  92  93  94  95  96  97  98  99  100  101  102  103  104  105  106  107  108  109  110  111  112  113  114  115  116  117  118  119  120  121  122  123  124  125  126  127  128  129  130  131  132  133  134  135  136  137  138  139  140  141  142  143  144  145  146  147  148  149  150  151  152  153  154  155  156  157  158  159  160  161  162  163  164  165  166  167  168  169  170  171  172  173  174  175  176  177  178  179  180  181  182  183  184  185  186  187  188  189  190  191  192  193  194  195  196  197  198  199  200  201  202  203  204  205  206  207  208  209  210  211  212  213  214  215  216  217  218  219  220  221  222  223  224  225  226  227  228  229  230  231  232  233  234  235  236  237  238  239  240  241  242  243  244  245  245  246  247  248  249  250  251  252  253  254  255  256  257  258  259  260  261  262  263  264  265  266  267  268  269  270  271  272  273  274  275  276  277  278  279  280  281  282  283  284  285  286  287  288  289  290  291  292  293  294  295  296  297  298  299  300  301  302  303  304  305  306  307  308  309  310  311  312  313  314  315  316  317  318  319  320
+
+]   xw:set-selected-items [31 149 216 ]
+    xw:set-x [xw:x + xw:width + 10] xw:of "Bridge Locations"
+    xw:set-height 750
+  ]
+  xw:create-numeric-input "Managed Tributary Location" [
+    xw:set-label "River Mile of Tributary Intersection"
+    xw:set-value 206 ;Percy Priest, 309 Caney Fork
+    xw:set-x [xw:x + xw:width + 10] xw:of "Dam Locations"
+    xw:set-height 50 
+    xw:set-width 250
+  ]
+
+  xw:create-button "setup"                                        ;;functions the same as the setup button on the main interface
+  [  xw:set-label "Push me!"
+    ; commands, given as strings, are compiled on execution:
+    xw:set-commands "setup"
+    xw:set-y [xw:y + xw:height + 10] xw:of "Dam Locations"
+    xw:set-x [xw:x + xw:width + 10] xw:of "Dam Locations"
+    xw:set-height 50 
+    xw:set-width 250
+  ]
+   xw:create-note "Bridge Locations on Cumberland"               
+   [xw:set-text "Bridge Locations on Cumberland are: 28, 30, 63, 89, 126, 128, 130, 158, 182, 185, 186, 189, 190, 191, 192, 194, 196, 200, 212" 
+     xw:set-x [xw:x + xw:width + 10] xw:of "Dam Locations"
+     xw:set-height 50
+     xw:set-width 1000]
+
+    xw:create-note "Dam Locations on Cumberland"
+    [xw:set-text "Choose up to 4 dam locations! Dam Locations on Cumberland are: 31, 149, 216, 314" 
+     xw:set-y [xw:y + xw:height + 10] xw:of "Bridge Locations on Cumberland"
+     xw:set-x [xw:x + xw:width + 10] xw:of "Dam Locations"
+     xw:set-height 50
+     xw:set-width 1000]
+    
+  ]
+
+  
+  
+end 
+
+to setup
+  clear-all
+  xw:select-tab 1
+  setup-globals
+  ask patches [setup-ground]
+  ask patches [setup-obstructions]
+  ask patches [ setup-river-segments] 
+  ask patches [setup-lock-dam]
+  ask patches [setup-dock]
+  setup-barges
+  setup-tows
+  setup-dammgrs
+  setup-lockmgrs
+  reset-ticks
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;Environment Set-up Procedures;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+to setup-globals 
+  set Dams xw:get  "Dam Locations"                  ;;extract list of selected dam locations from multichooser interface
+  let deltax (item 0 Dams + 2)                     ;;calculate the offset to make first dam non-visible
+  set Dams map [ (? - deltax) ] Dams                   ;;for Cumberland river shift all positions such that graphic starts at river mile where the Barkley Canal joins the river
+  set Bridges xw:get  "Bridge Locations"              ;;extract list of selected bridge locations
+  set Bridges map [ (? - deltax) ] Bridges 
+  set Segments xw:get  "Dam Locations"                ;; extract list of river segment start and end points
+  set Segments map [ (? - deltax) ] Segments 
+  set Locks xw:get  "Dam Locations"                   ;;extract list of Lock locations (at same locations as dams)
+  set Locks map [ (? - deltax) ] Locks set Locks but-first Locks   ;;remove first  lock as it is outside observable area 
+  set Tributary xw:get "Managed Tributary Location"
+  set Tributary (Tributary - deltax)
+ 
+  set tick-datetime time:create "2015-01-01 8:30"    ;;set original start time and show it on screen
+   print time:show tick-datetime "yyyy-MM-dd HH:mm"
+  set previous-stage Stage
+  set previous-time-of-day "nighttime"
+  set runtime time:plus tick-datetime 365 "days"
+end
+
+to setup-ground                                       ;;set-up grass surface patches and soil subsurface patches
+  if ((pycor < -2 and pzcor <= elevation - 1 and pzcor >= elevation - 2) or (pycor = -6 or pycor = -7 and pzcor = elevation) or (pycor = 3 and pzcor <= elevation - 1 and pzcor >= elevation - 2)
+    or (pycor = 4 and pzcor <= elevation - 1 and pzcor >= elevation - 2) or (pycor = 5 and pzcor <= elevation  and pzcor >= elevation - 2) or (pycor = 6 and pzcor <= elevation + 1 and pzcor >= elevation - 2) 
+    or (pycor >= 7 and pzcor <= elevation  and pzcor >= elevation - 2)) and pxcor >= 0 [set pcolor green + (random-float 2) - 1]
+  if pycor < -2 or pycor > 2 and pzcor <= elevation - 2 and pxcor >= 0   [set pcolor brown + (random-float 2) - 1] 
+    if pxcor = Tributary or pxcor = Tributary + 1  and pycor < -2 and pycor > -6  [set pcolor 0]
+   if pxcor = Tributary + 1 or pxcor = Tributary + 2 and pycor  < -4 and pycor >= -8 [set pcolor 0] 
+end
+
+to setup-river-segments                               ;;set-up river patches  
+  if (Stage = "Normal") and (pycor <= 2) and (pycor >= -2) and pzcor < elevation - 1 [ set pcolor blue ]
+  if (Stage = "High-Water") and (pycor <= 2) and (pycor >= -2) and pzcor < elevation [ set pcolor blue ]
+  if (Stage = "Extreme-High-Water") and (pycor <= 4) and (pycor >= -5) and pzcor < elevation + 1 [ set pcolor blue ]
+ if pxcor = Tributary or pxcor = Tributary + 1  and pycor < -2 and pycor > -6 and pzcor < elevation  [set pcolor blue]
+   if pxcor = Tributary + 1 or pxcor = Tributary + 2 and pycor  < -4 and pycor >= -8 and pzcor < elevation  [set pcolor blue] 
+  if pycor = 0 and pzcor = 0 [set action-class "normal"]
+end
+
+to setup-lock-dam                                     ;;set-up lock and dam patches          
+    foreach Locks                                      ;;create a dam at each input location, cycle through list    
+  [if pxcor = ? and (pycor <= 4) and (pycor >= -5) and pycor != 0 and pzcor <= elevation  [ set pcolor gray ]   ; for pxcor equal to current value in list ....  
+     if pxcor = (? - 1) and (pycor = -1 or pycor = 1)  and pzcor <= elevation + 1  [ set pcolor gray ]
+          if pxcor = (? + 1) and (pycor = -1 or pycor = 1)  and pzcor <= elevation   [ set pcolor gray ]
+  ]
+end
+
+to setup-obstructions 
+
+foreach Bridges [if ? < 0 [ set Bridges remove-item (position ? Bridges) Bridges]]  ;;remove bridges that are below Barkely canal
+let n Bridges set n fput 0 n set n but-last n ;offset the Bridges list by 1 to evaluate consecutive bridges and call it n
+let m (map [?1 - ?2 > 5] Bridges n) ; creates a true/false list that states wether consecutive bridges are within 5 miles of each other
+let p n ;create a duplicate list
+foreach p [if ? < last p and ? > 0 and item (position ? p ) m = FALSE and item ((position ? p) - 1) m = FALSE [set p replace-item (position ? p) p 0]] ;replace bridges in between start and end of consec bridges with 0
+
+foreach p                                    ;;create a bridge at each input location, cycle through list
+  [if ? != 0[if pxcor = ?
+    [if pycor <= 3 and pycor >= -4 and pzcor = elevation + 2 [set pcolor gray - 3] 
+  if pycor = -5 or pycor = 4  and (pzcor = elevation or pzcor = elevation + 1) [set pcolor gray - 3]
+  ]]]
+  
+  if Activate-One-Way-Zone?                            ;;setup buoys if a one-way zone is active at startup
+  [if Stage = "High-Water"
+    [if pxcor = One-way-buoy-1 or pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation [set pcolor orange]]
+  if Stage = "Normal"
+    [if pxcor = One-way-buoy-1 or  pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation - 1 [set pcolor orange]]
+  if Stage = "Extreme-High-Water"
+    [if pxcor = One-way-buoy-1 or  pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation + 1 [set pcolor orange]]
+  ] 
+
+set Bridges-2 p
+set Bridge-eval remove-duplicates Bridges-2   
+end
+
+to setup-dock                                          ;;set-up barge docking/loading station patches
+  if (pxcor = min-pxcor + 1) and (pycor = -3)and pzcor = elevation - 1 [ set pcolor gray - 3]
+  if (pxcor = max-pxcor - 1) and (pycor = 3) and pzcor = elevation - 1[ set pcolor gray - 3]
+   if (pxcor = Major-Harbor ) and (pycor = 3 or pycor = -3) and pzcor = elevation - 1[ set pcolor gray - 3]
+end
+
+to-report elevation                                    ;;report the base elevation to use as a reference point in stage levels and tow zcor
+  let result 5
+  let n  0
+  ifelse pxcor >= 0 and pxcor < item 0 Segments [set result ( 3)]
+  [while [n < length Segments - 1]
+    [
+     if pxcor >= item n Segments and pxcor < item (n + 1) Segments [set result (n + 4)]
+     if pxcor >= item (n + 1) Segments [set result (n + 5)]
+     set n  n + 1
+    ]
+  ]
+  report result
+end
+
+to setup-dammgrs
+  let starting-elevations [ 386 354 482 ]
+  let starting-storage [ 4530240000 4530240000 4530240000 ]  ;;;update these values
+  foreach Dams
+   [create-dammgrs 1
+      [ifelse ? < 0 [set xcor 0][set xcor ?]
+      ;set damname (position ? Dams)
+      set damname who
+      set power 0
+      set inflow 10000
+      set project-stage item (position ? Dams) starting-elevations
+      set storage item (position ? Dams) starting-storage
+      set previous-storage item (position ? Dams) starting-storage]
+   ]
+   create-dammgrs 1
+   [;set damname 3
+     set xcor  Tributary
+     set damname who
+     set power 0
+     set inflow 10000
+     set project-stage last  starting-elevations
+     set storage last starting-storage
+     set previous-storage last starting-storage]
+  
+end
+
+to setup-lockmgrs
+  foreach Locks
+  [create-lockmgrs 1
+    [set xcor ?
+    ;set lockname (position ? Locks)
+    set lockname who
+    set locktime position ? Locks + random 2]
+  ]
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;Barge Set-up Procedures;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;create barges on dock to link with tows, set them at docks on lower left or upper right corners
+
+to setup-barges 
+  set-default-shape barges "square"
+  create-barges 75 
+  [
+    set color one-of [ green yellow white cyan orange magenta violet]
+    set size 0.5
+    set xcor min-pxcor + 1
+    set ycor -3
+    set zcor elevation - 0.5
+    set heading 90
+    set status "Waiting"
+    set previous-status "Waiting"
+  ]
+  create-barges 75 
+  [
+    set color one-of [  green yellow white cyan orange magenta violet]
+    set size 0.5
+    set xcor (max-pxcor - 1) 
+    set ycor 3
+    set zcor elevation - 0.5
+    set heading 270
+    set status "Waiting"
+    set previous-status "Waiting"
+  ]
+end
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;UpTows Set-up Procedure;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;create tow with a random HP from list and a load (ie # of barges) and speed dependent on HP
+
+to setup-tows 
+  set-default-shape tows "car"
+  create-tows 1 
+  [
+    set color black set size 0.5 set heading  90
+    set xcor min-pxcor + 1 set ycor -1
+    set count-down 100 
+    if (Stage = "Normal") [set zcor elevation - 1.25] if (Stage = "High-Water") [set zcor elevation - 0.25 ] if (Stage = "Extreme-High-Water") [set zcor elevation + 0.75] ;; adjust the elevation of the tow depending on the stage
+    set horsepower one-of [1250 1230 1710 1730 600 850 700 220 1200 1800 900 3800 400 850 3200 1200 900 400 440 1900 430 600 440 750 210 900 220 1280 900 250 1800 700 250 550 210 800 800 4800 1570 730 600 775 3600 600 1410 1200]
+    ask tows
+      [ifelse  (horsepower / Horsepower/Barge-Ratio) < Max-Barges [set load round (horsepower / Horsepower/Barge-Ratio)]
+        [ set load Max-Barges] 
+      set speed  (random-normal-in-bounds upstream-speed-target (upstream-speed-target * .25) minimum-speed maximum-speed) 
+      set original-speed speed
+      set location "Below Nashville"
+      set status "pickup"
+      set birthday 0
+      create-connections-to-tows 
+     ]]
+   
+   
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;DownTow Set-up Procedure;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+  create-tows 1 
+  [
+    set color black set size 0.5 set heading  270
+    set xcor (max-pxcor - 1)  set ycor 1
+    set count-down 100 
+    if (Stage = "Normal") [set zcor elevation - 1.25] if (Stage = "High-Water") [set zcor elevation - 0.25 ] if (Stage = "Extreme-High-Water") [set zcor elevation + 0.75] ;; adjust the elevation of the tow depending on the stage
+    set horsepower one-of [1250 1230 1710 1730 600 850 700 220 1200 1800 900 3800 400 850 3200 1200 900 400 440 1900 430 600 440 750 210 900 220 1280 900 250 1800 700 250 550 210 800 800 4800 1570 730 600 775 3600 600 1410 1200] 
+    
+     ask tows
+      [ifelse  (horsepower / Horsepower/Barge-Ratio) < Max-Barges [set load round (horsepower / Horsepower/Barge-Ratio)]
+        [ set load Max-Barges] 
+      set speed (random-normal-in-bounds downstream-speed-target (downstream-speed-target * .33) minimum-speed maximum-speed)  
+      set original-speed speed
+      set location "Above Nashville"
+      set status "pickup"
+      set birthday 0
+      create-connections-to-tows
+     ]]
+   
+      
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;Connections Set-up Procedure;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to create-connections-to-tows ;; take on as many barges as possible considering your HP and Horesepower/Barge-Ratio, only take barges if you are alongside the dock and if a barge has no connections to other tows
+  if heading = 90
+  [while [ connected-barges < load  and xcor = min-pxcor + 1]
+     [create-link-to one-of barges with [xcor = min-pxcor + 1 and no-barge-links?] [tie] 
+     set connected-barges count my-out-links 
+     let c one-of [green yellow white cyan orange magenta violet]
+     ask out-link-neighbors [set color  c]
+     ]
+  ]
+  if heading = 270
+  [while [ connected-barges < load  and xcor = (max-pxcor - 1)]
+     [create-link-to one-of barges with [xcor = (max-pxcor - 1) and no-barge-links?] [tie] 
+     set connected-barges count my-out-links
+     let c one-of [green yellow white cyan orange magenta violet]
+     ask out-link-neighbors [set color  c]
+     ]
+  ]
+end
+
+
+
+to-report no-barge-links? ;; report true if a barge is not yet linked to a tow
+  report count my-in-links = 0
+end
+
+to load-barges
+ let x xcor
+  let y ycor
+  let z zcor
+   if heading = 90
+  [ask out-link-neighbors 
+    [if previous-status = "Waiting" 
+    [set xcor (x + 0.5)
+      set ycor y
+      set status "Loaded"
+      if large-load? = 1 [set size 1]
+      set zcor z]
+  ]
+    ]
+  if heading = 270
+  [ask out-link-neighbors [if previous-status = "Waiting"
+    [set xcor (x - 0.5)
+      set ycor y
+      set status "Loaded"
+      if large-load? = 1 [set size 1]
+      set zcor z]
+  ]
+  ]
+  set status "In-transit"
+end
+ 
+to-report large-load?
+  let tow-boat 0
+  let r 0
+  ask my-in-links [set tow-boat other-end]
+  ask tow-boat [if connected-barges > 6 [set r 1]]
+  report r
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;
+;;Active-Procedures ;; 
+;;;;;;;;;;;;;;;;;;;;;;
+
+to go
+  update-system
+  update-locks-and-dams
+  update-barges    
+  update-tows
+
+  evaluate-tow-movements
+
+  if previous-time-of-day != time-of-day [ set previous-time-of-day time-of-day] ;;feedback parameter used for tow movements
+  ;;tow procedures at one-way zones
+  ;ask tows [yield-one-way]
+  
+  ;;random creation of accidents and related tow status updates and procedures
+ ; ask tows [spawn-casualties]
+
+ 
+  ;; tow movement procedures
+ ask tows 
+    [if status  = "In-transit"
+      [move]]
+    
+
+  ;; count barges delivered this tick
+  set barges-delivered barges-delivered + new-cargo-delivered
+  
+  ;; add agents to system
+ add-barges
+  add-tows
+  
+  ;; remove tows, barges, and the links between them if moved past the segment of interest
+  kill-tows-barges 
+  
+  ;;data output procedures
+  file-open filename ; copy to excel and delimit by } (treat consecutive as 1), then transpose, then import to Tableau
+  ask tows [file-write who file-write xcor file-write heading file-write speed file-write time-of-day file-write barges-delivered file-write status file-write connected-barges file-write transit-time file-write deathday file-write tick-datetime  ] 
+
+
+  ;;each tick represents 30 minutes
+  tick
+  
+  if time:is-after tick-datetime runtime  
+  [stop]
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;Globaland Patch Actions ;;;; 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ 
+ to update-system
+  set tick-datetime time:anchor-to-ticks (time:create "2015-01-01 8:30") 0.5 "hour" ;; set a start time and anchor ticks to time intervals of 30 minutes 
+  set day ceiling (ticks / 48)  ;; set a day as 48 ticks (ie 24 hrs * 2 due to half hour updates)
+  set month ceiling (day / 30)   ;; assume all months are the same length (ie 30 days)
+  set day-length 24 + 5 * sin (( (month + 9) * (6 / 12) )*(180 / pi)) ;; day length cycles up and down based on the time of year (cycles from ~8 to 16 hrs per day) (approx based off NOAA solar calculation spreadsheet)
+  ask patches [sun-moon] ;;daytime and nighttime visualization
+      ;if previous-time-of-day != time-of-day [ set previous-time-of-day time-of-day] ;;feedback parameter used for tow movements
+  if Control-flows?
+     [
+      ask patches with [pycor = 0 and pzcor = 0]  [set-flow set-river-stage set-action-class] ;;update basic hydrology parameters
+      ask patches [if action-class-change != 0 [adjust-stage]] ;; ask patches to update elevation based on river stage 
+      ask patches with [pycor = 0 and pzcor = 0] [if previous-action-class != action-class [set previous-action-class action-class]] ;;feedback parameter to reduce adjust-stage computations
+     ]
+  ask patches [place-buoys]
+  set casualties casualties + accidents ;;system reporter
+ end
+ 
+to-report time-of-day
+  let result "daytime"
+  if ticks mod 48 > day-length
+  [set result "nighttime"]
+  report result
+end
+
+to-report time-to-night
+  let n 0
+  while [(ticks + n) mod 48 < day-length] [set n n + 1]
+  report n
+end
+
+
+to sun-moon
+  if time-of-day = "daytime" and previous-time-of-day = "nighttime" and pycor = max-pycor and pzcor > 3 and pzcor <= 20 and (pcolor = 0 or pcolor = blue - 4) [set pcolor cyan + 1]
+  if time-of-day = "nighttime" and previous-time-of-day = "daytime" and pycor = max-pycor and pzcor > 3 and pzcor <= 20 and (pcolor = 0 or pcolor = cyan + 1)[ set pcolor 0]
+end
+
+to set-flow
+  let d3 (min [who] of dammgrs + 2)
+  let x3 [xcor] of dammgr d3
+  let d2 (min [who] of dammgrs + 1)
+  let x2 [xcor] of dammgr d2
+  let d1 (min [who] of dammgrs)
+  let x1 [xcor] of dammgr d1
+  let dt (min [who] of dammgrs + 3)
+  let xt Tributary
+  
+    if pxcor > x3 [set flow [inflow] of dammgr d3] ;;provide historical data inflow to upstream-most dam
+    ;between Dam 3 and Dam 2
+    if pxcor <= x3 and pxcor > x2  and pxcor > xt [set flow Outflow-Dam-3] ;; update this with historical data to account for losses and overland additions
+    if pxcor <= x3 and pxcor > x2  and pxcor <= xt [set flow (Outflow-Dam-3 + Outflow-Tributary-Dam)]
+    ;between Dam 2 and the non-visible Dam 1
+    if pxcor <= x2 and pxcor > xt [set flow Outflow-Dam-2]  
+    if pxcor <= x2 and pxcor <= xt and pxcor > x1 [set flow (Outflow-Dam-2 + Outflow-Tributary-Dam)]
+end
+
+to set-river-stage ;use of tw or headwater stage depends on WAP
+  let d3 (min [who] of dammgrs + 2)
+  let x3 [xcor] of dammgr d3
+  let d2 (min [who] of dammgrs + 1)
+  let x2 [xcor] of dammgr d2
+  let d1 (min [who] of dammgrs)
+  let x1 [xcor] of dammgr d1
+  let dt (min [who] of dammgrs + 3)
+  let xt  Tributary
+   ;;update this section
+    if pxcor > x3 [set river-stage (18.7321 * log [storage] of dammgr d3 10 + 2.54725 )] ;;storage-elevation curve for Old Hickory in dam data inflow back calc
+    if pxcor = x3 [set river-stage [project-stage] of dammgr d3]
+    if pxcor < x3 and pxcor > xt [set river-stage  ( 0.000471332 * ( Outflow-Dam-3) + 385.127) ] ;;tw-stage v outflow rating curve for Old Hickory in dam data 2006-2010d
+    if pxcor <= xt and pxcor > x2 [set river-stage (0.000471332 * ((Outflow-Dam-3) +  Outflow-Tributary-Dam) + 385.127) ] ;;use storage elevation curve for Cheatham
+    if pxcor = x2 [set river-stage [project-stage] of dammgr d2]
+    if pxcor < x2 and pxcor >= x1 [set river-stage (  0.000177619 * (Outflow-Dam-2) + 357.646)];;use tw-stage v outflow rating curve for Cheatham
+end
+
+to set-action-class
+  let d3 (min [who] of dammgrs + 2)
+  let x3 [xcor] of dammgr d3
+  let d2 (min [who] of dammgrs + 1)
+  let x2 [xcor] of dammgr d2
+  let d1 (min [who] of dammgrs)
+  let x1 [xcor] of dammgr d1
+  let dt (min [who] of dammgrs + 3)
+  let xt  Tributary
+  ;;update this section
+    if pxcor > x3 [ifelse (river-stage >= 448 or flow >= 90000) [set action-class "Extreme-High-Water"][set action-class "Normal"]] ;;HW Old Hickory
+    if pxcor <= x3 and pxcor > xt [ifelse river-stage >= 424 [set action-class "Extreme-High-Water" ][ifelse flow >= 75000 [set action-class "High-Water"][set action-class "Normal"]]] ;;TW Old Hickory
+    if pxcor <= xt and pxcor > x2 [ifelse river-stage >= 408[set action-class "Extreme-High-Water" ][ifelse river-stage >= 403 [set action-class "High-Water"] [ifelse river-stage >= 393 [set action-class "High-Water-Watch"][ifelse round (river-stage) <= 385 [set action-class "Low-Water-Watch"][set action-class "Normal"]]]]] ;35' at Nashville Harbor, 40' at Nashville Harbor (413) is flood stage
+    if pxcor = x2 [ifelse [project-stage] of dammgr d2 >= 387.1 [set action-class "Extreme-High-Water" ][set action-class "Normal"]]
+    if pxcor < x2 and pxcor >= x1 [ifelse river-stage >= 424 [set action-class "Extreme-High-Water" ][ifelse flow >= 75000 [set action-class "High-Water"][set action-class "Normal"]]]
+end
+
+
+to-report action-class-change
+   let d3 (min [who] of dammgrs + 2)
+  let x3 [xcor] of dammgr d3
+  let d2 (min [who] of dammgrs + 1)
+  let x2 [xcor] of dammgr d2
+  let d1 (min [who] of dammgrs)
+  let x1 [xcor] of dammgr d1
+  let dt (min [who] of dammgrs + 3)
+  let xt Tributary
+   let n 0
+  let spots (list (min-pxcor) (x1) (xt) (x2) (x3) (max-pxcor))
+    foreach spots [ 
+  if [action-class] of patch ? 0 0 !=  [previous-action-class] of patch ? 0 0 
+  [set n 1]
+    ]
+  report n
+end
+
+to adjust-stage ;; raise and lower water level without changing locks and dams
+ let d3 (min [who] of dammgrs + 2)
+  let x3 [xcor] of dammgr d3
+  let d2 (min [who] of dammgrs + 1)
+  let x2 [xcor] of dammgr d2
+  let d1 (min [who] of dammgrs)
+  let x1 [xcor] of dammgr d1
+  let xt  Tributary
+  let spots sort-by < (list (min-pxcor) (x1) (xt) (x2) (x3) (max-pxcor)) ;;list of locations to evaluate changes in stage that should be visualized   ;;; pull out xt
+    foreach spots [ 
+      if position ? spots != 0 and position ? spots < length Dams  [
+     if ([action-class] of patch (? - 1) 0 0 = "Normal"and [previous-action-class] of patch (? - 1) 0 0 != "Normal") or ([action-class] of patch ? 0 0 = "Normal"and [previous-action-class] of patch ? 0 0 != "Normal")
+     [if pxcor >= item (position ? spots - 1) spots and pxcor <= ? and  (pycor <= 2) and (pycor >= -2) and  pzcor < elevation - 1 and (pcolor = 0 )[ set pcolor blue ]
+       if pxcor >= item ((position ? spots) - 1) spots and pxcor <= ? and (pycor <= 4) and (pycor >= -5) and (pzcor >= elevation - 1 )  and (pcolor = blue) [ set pcolor 0 ]]
+     if ([action-class] of patch (? + 1) 0 0 = "Normal"and [previous-action-class] of patch (? + 1) 0 0 != "Normal") 
+     [if pxcor >= ? and pxcor <= item (position ? spots + 1) spots and  (pycor <= 2) and (pycor >= -2) and pzcor < elevation - 1 and (pcolor = 0 )[ set pcolor blue ]
+       if pxcor >= ? and pxcor <= item (position ? spots + 1) spots and (pycor <= 4) and (pycor >= -5) and (pzcor >= elevation - 1 )  and (pcolor = blue) [ set pcolor 0 ]]
+    
+    if ([action-class] of patch (? - 1) 0 0 = "High-Water"and [previous-action-class] of patch (? - 1) 0 0 != "High-Water") or ([action-class] of patch ? 0 0 = "High-Water"and [previous-action-class] of patch ? 0 0 != "High-Water")
+       [if pxcor >= item (position ? spots - 1) spots and pxcor <= ? and  (pycor <= 2) and (pycor >= -2) and pzcor < elevation and (pcolor = 0)[ set pcolor blue ]
+      if pxcor >= item (position ? spots - 1) spots and pxcor <= ? and ((pycor <= 4) and (pycor >= -5) and pzcor >= elevation   )and pcolor = blue [ set pcolor 0 ]]
+    if ([action-class] of patch (? + 1) 0 0 = "High-Water"and [previous-action-class] of patch (? + 1) 0 0 != "High-Water") 
+      [if pxcor >= ? and pxcor <= item (position ? spots + 1) spots and  (pycor <= 2) and (pycor >= -2) and pzcor < elevation and (pcolor = 0)[ set pcolor blue ]
+     if pxcor >= ? and pxcor <= item (position ? spots + 1) spots and ((pycor <= 4) and (pycor >= -5) and pzcor >= elevation   ) and pcolor = blue [ set pcolor 0 ]]
+    
+     if ([action-class] of patch (? - 1) 0 0 = "Extreme-High-Water"and [previous-action-class] of patch (? - 1) 0 0 != "Extreme-High-Water") or ([action-class] of patch ? 0 0 = "Extreme-High-Water"and [previous-action-class] of patch ? 0 0 != "Extreme-High-Water")
+      [if pxcor >= item (position ? spots - 1) spots and pxcor <= ? and  (pycor <= 4) and (pycor >= -5) and pzcor > elevation - 1 and pzcor < elevation + 1 and pcolor = 0 [ set pcolor blue ]]
+    if ([action-class] of patch (? + 1) 0 0 = "Extreme-High-Water"and [previous-action-class] of patch (? + 1) 0 0 != "Extreme-High-Water")
+      [if pxcor >= ? and pxcor <= item (position ? spots + 1) spots and  (pycor <= 4) and (pycor >= -5) and pzcor > elevation - 1 and pzcor < elevation + 1 and pcolor = 0[ set pcolor blue ]]
+      ]
+                    
+    if ([action-class] of patch (? - 1) 0 0 = "Low-Water-Watch"and [previous-action-class] of patch (? - 1) 0 0 != "Low-Water-Watch") or ([action-class] of patch ? 0 0 = "Low-Water-Watch"and [previous-action-class] of patch ? 0 0 != "Low-Water-Watch")
+      [if pxcor > item (position ? spots - 1) spots and pxcor <= ? and (pycor <= 4) and (pycor >= -5) and (pzcor >= elevation - 2 )  and (pcolor = blue) [ set pcolor 0 ]]
+     if ([action-class] of patch (? + 1) 0 0 = "Low-Water-Watch"and [previous-action-class] of patch (? + 1) 0 0 != "Low-Water-Watch") 
+      [if pxcor > ? and pxcor <= item (position ? spots + 1) spots and (pycor <= 4) and (pycor >= -5) and (pzcor >= elevation - 2 )  and (pcolor = blue) [ set pcolor 0 ]]
+    ]  
+end 
+
+
+to place-buoys
+  if Stage = "High-Water" and Activate-One-Way-Zone?
+    [if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation [set pcolor orange]
+     if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation [set pcolor orange]
+     if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation + 1 [set pcolor 0]
+     if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation + 1 [set pcolor 0]
+     if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation - 1 [set pcolor blue]
+     if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation - 1 [set pcolor blue]
+  ]
+    if Stage = "Normal" and Activate-One-Way-Zone?
+    [if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation - 1 [set pcolor orange]
+    if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation - 1 [set pcolor orange]
+    if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation or pzcor = elevation + 1 [set pcolor 0]
+     if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation or pzcor = elevation + 1 [set pcolor 0]
+  ]
+    if Stage = "Extreme-High-Water" and Activate-One-Way-Zone?
+    [if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation + 1 [set pcolor orange]
+    if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation + 1 [set pcolor orange]
+     if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation  [set pcolor blue]
+     if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation  [set pcolor blue]
+  ]
+      
+  if Stage = "High-Water" and not Activate-One-Way-Zone?
+  [if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation [set pcolor 0]
+  if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation [set pcolor 0]
+  ]
+  if Stage = "Extreme-High-Water" and not Activate-One-Way-Zone?
+  [if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation + 1 [set pcolor 0]
+  if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation + 1 [set pcolor 0]
+  ]
+  if Stage = "Normal" and not Activate-One-Way-Zone?
+  [if pxcor = One-way-buoy-1 and pycor = 0 and pzcor = elevation - 1 [set pcolor 0]
+  if pxcor = One-way-buoy-2 and pycor = 0 and pzcor = elevation - 1 [set pcolor 0]
+  ]
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;LOCK & DAM UPDATES;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to update-locks-and-dams
+ ask dammgrs [set inflow current-inflow set storage (previous-storage + volume-change)]
+  ask dammgrs [ set project-stage update-project-stage set previous-storage storage]
+  ask lockmgrs [set locktime update-lockage-time set barge-allowance Number-of-barges-per-lockage]
+end
+
+to-report current-inflow
+  let qin 0
+  let d3 (min [who] of dammgrs + 2)
+  let x3 [xcor] of dammgr d3
+  let d2 (min [who] of dammgrs + 1)
+  let x2 [xcor] of dammgr d2
+  let d1 (min [who] of dammgrs)
+  let x1 [xcor] of dammgr d1
+  let dt (min [who] of dammgrs + 3)
+  let xt  Tributary
+
+  if damname = d3  [set qin dam-3-inflow]; headwater inflow
+  if damname = d2 [set qin (Outflow-Dam-3)] ; inflow of middle dam equals outflow from upstream dam
+  if damname = dt [set qin 10000] ; tributary inflow
+  if damname = d1 [ ifelse xt > x1 [set qin (1.33 * (Outflow-Dam-2 +  Outflow-Tributary-Dam) - 2529)][set qin (Outflow-Dam-2)]] ; see dam data 2006-2010d
+  report qin
+end    
+
+
+to-report volume-change  ; add evapotranspiration losses for when inflows go to zero
+  let d3 (min [who] of dammgrs + 2)
+  let x3 [xcor] of dammgr d3
+  let d2 (min [who] of dammgrs + 1)
+  let x2 [xcor] of dammgr d2
+  let d1 (min [who] of dammgrs)
+  let x1 [xcor] of dammgr d1
+  let dt (min [who] of dammgrs + 3)
+  let xt  Tributary
+  let v 0 
+   if damname = d3 [set v (dam-3-inflow - Outflow-Dam-3) * 60 * 30] ; flow in cfs times 60 sec in 1 min times 30 min per tick
+    if damname = d2 [set v (  [inflow] of dammgr d2  - Outflow-Dam-2) * 60 * 30]
+    if damname = d1 [set v ( [inflow] of dammgr d1  - Outflow-Dam-1) * 60 * 30] 
+    if damname = dt [set v ( [inflow] of dammgr dt  - Outflow-Tributary-Dam) * 60 * 30]
+    report v
+end
+
+to-report update-project-stage
+  let d3 (min [who] of dammgrs + 2)
+  let x3 [xcor] of dammgr d3
+  let d2 (min [who] of dammgrs + 1)
+  let x2 [xcor] of dammgr d2
+  let d1 (min [who] of dammgrs)
+  let x1 [xcor] of dammgr d1
+  let dt (min [who] of dammgrs + 3)
+  let xt  Tributary
+  let s 0
+    if damname = d3 [set s (18.7321 * log [storage] of dammgr d3 10 + 2.54725 )] ;;storage-elevation curve for Old Hickory in dam data inflow back calc
+    if damname = d2 [set s  (12.4666 * log [storage] of dammgr d2 10 + 107.999) ] ;;storage-elevation curve for Cheatham in dam data inflow back calc
+    if damname = d1 [set s (12.4666 * log [storage] of dammgr d2 10 + 100.999)]
+    if damname = dt [set s (12.4666 * log [storage] of dammgr d2 10 + 90.999)]
+   report s
+end
+
+to-report update-lockage-time
+  let t 3
+  if lockname = min [who] of lockmgrs
+  [set t Lockage-time-1]
+  if lockname = min [who] of lockmgrs + 1
+  [set t Lockage-time-2]
+
+  report t
+end
+  
+to-report number-of-barges-per-lockage
+  let n 6
+  if lockname = min [who] of lockmgrs
+  [set n Barges-per-lockage-1]
+  if lockname = min [who] of lockmgrs + 1
+  [set n Barges-per-lockage-2]
+
+  report n
+end
+
+to-report request-countdown
+  let t 0
+  let b 5
+  let c connected-barges
+  let countdown 1
+  let x xcor
+  let x1 (min [xcor] of lockmgrs)
+  let l1 min [who] of lockmgrs
+  let x2 (max [xcor] of lockmgrs)
+  let l2 min [who] of lockmgrs + 1
+  if xcor = x1 [set t [locktime] of lockmgr l1 set b [barge-allowance] of lockmgr l1]
+  if xcor = x2 [set t [locktime] of lockmgr l2 set b [barge-allowance] of lockmgr l2]
+  set countdown (t * ceiling (c / b))
+  report countdown
+end
+
+;;;;;;;;;;;;;;;;;;;;;;
+;;;;BARGE-ACTIONS;;;;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+to update-barges
+  ask tows [if status = "fleeting-pickup" or status = "pickup" [load-barges]] ;; link barges to tows
+  ask links [set color 0] ;; hide link arrows
+  
+  if current-up-fleet > 0
+     [let name [who] of one-of barges with [xcor =  Major-Harbor and ycor = -3 and zcor = elevation] 
+  if count barges with [xcor =  Major-Harbor and ycor = -3 and zcor = elevation] > 1
+     [ask barge name
+     [set zcor (elevation + round (current-up-fleet / 10))
+      set size 1]
+     ]
+     ]
+  if current-down-fleet > 0
+     [let name [who] of one-of barges with [xcor = Major-Harbor and ycor = 3 and zcor = elevation] 
+  if count barges with [xcor =  Major-Harbor and ycor = 3 and zcor = elevation] > 1
+     [ask barge name
+     [set zcor (elevation + round (current-down-fleet / 10))
+      set size 1]
+     ]
+     ]
+  ask barges [set previous-status status]
+end
+ 
+ to-report current-up-fleet
+   let c 0
+   set c count barges with [xcor = Major-Harbor and ycor = -3 ]
+   report c
+ end
+ 
+ to-report current-down-fleet
+   let c 0
+   set c count  barges with [xcor =  Major-Harbor and ycor = 3]
+   report c
+ end
+ 
+ to-report current-fleet
+   let c 0
+   set c count barges with [xcor = Major-Harbor ]
+   report c
+ end
+ 
+ to-report max-elevation-up-fleet
+   let me 5
+   let zuf [zcor] of barges with [xcor = Major-Harbor and ycor = -3 ]
+   set me max zuf
+   report me
+ end
+ 
+  to-report max-elevation-down-fleet
+   let me 5
+   let zdf [zcor] of barges with [xcor = Major-Harbor and ycor = 3 ]
+   set me max zdf
+   report me
+ end
+ 
+   
+ 
+;;;;;;;;;;;;;;;;;;;;
+;;;;TOW-ACTIONS;;;;; 
+;;;;;;;;;;;;;;;;;;;;
+
+to update-tows
+  ask tows[
+     adjust-height ;; adjust height so that vessels remain on the water surface when change in elevation or water level occur
+     set stage1 [action-class] of patch xcor 0 0 
+     set flow1 [flow] of patch xcor 0 0
+     if location = "Below Nashville" and xcor >  Major-Harbor [set location "Above Nashville"]
+     if location = "Above Nashville" and xcor <  Major-Harbor [set location "Below Nashville"]
+     if locking [set status "Locking"]
+     if status = "Lock-delay" or status = "Bridge-delay" or status = "one-way-delay" [set status "In-transit"]
+     ]
+  ;;tow responses to change in time of day and speed updates after tow state changes
+  ;if time-of-day = "daytime" ;update speeds that may have been set to zero during the night
+   ask tows [if speed < minimum-speed and (status != "Locking" or status != "fleeting") [set speed original-speed speed-control]] ;return to previous speed if not stopped due to locking but check to make sure it is within bounds and meets other control protocols
+   ask tows [if speed = 0 and (one-way-ahead? or bridge-ahead? != False) [set speed original-speed speed-control]]
+   ask tows [if time-of-day = "daytime" and previous-time-of-day = "nighttime" [if speed = 0 [set speed original-speed]]]
+ ; if Stage = "Normal" 
+   ;  [ask tows [if speed < minimum-speed and (status != "Locking" or status != "fleeting") [set speed original-speed speed-control]]] 
+ ; if Stage = "High-Water"
+  ;   [ask tows [if speed = 0 and one-way-ahead? and tow-between-you-and-oneway = false [set speed original-speed speed-control]]] ; for high-water conditions return to previous speed when waiting at a one-way, but check within bounds and no other tows ahead waiting
+ ; if Stage = "Extreme-High-Water"
+  ;   [ask tows [if speed = 0 and one-way-ahead? [set speed original-speed speed-control]]]
+ ; if Stage = "High-Water"
+   ;  [ask tows [if speed = 0 and (status != "Locking" or status != "fleeting"or status != "casualty") [set speed original-speed speed-control]]]
+  
+  ;ask tows [ if speed < minimum-speed and status = "In-transit" [ set speed original-speed speed-control]] 
+  
+ ;ask tows [ if flow1 > 90000 [ set speed speed * 0.5]];slow down a lot instead of stop entirely?
+ ask tows [set previous-status status]
+ ask tows [if tows-ahead? != nobody
+   [if  any? tows-ahead? with [status = "casualty"] != nobody and ([pcolor] of patch-at (speed / 2) 0 -1 = red )
+   [set speed 0]]
+   ]
+end
+
+to adjust-height
+set zcor water-table + 0.75
+end
+
+to-report water-table
+  let result 5
+  let n  0
+  ifelse pxcor >= 0 and pxcor < item 0 Segments [set result (max [pzcor] of patches with [pxcor >= 0 and pxcor < item 0 Segments and pcolor = blue])]
+    [while [n < length Segments - 1]
+    [
+     if pxcor >= item n Segments and pxcor < item (n + 1) Segments [set result (max [pzcor] of patches with [pxcor >= item n Segments and pxcor < item (n + 1) Segments and pcolor = blue])]
+     if pxcor >= item (n + 1) Segments [set result (max [pzcor] of patches with [pxcor >= item (n + 1) Segments and pcolor = blue])]
+     set n  (n + 1)
+    ]
+    ]
+  report result
+end
+
+to speed-control
+  if Stage1 = "Normal" and  (speed < minimum-speed or speed > maximum-speed)
+     [set speed adjust-speed]
+  if Stage1 != "Normal" 
+     [if tow-ahead = nobody and  (speed < minimum-speed or speed > maximum-speed)
+     [set speed adjust-speed]
+  if tow-ahead != nobody and distance (tow-ahead) > (maximum-speed / 2) and speed > maximum-speed
+     [set speed adjust-speed]
+  if tow-ahead != nobody and distance (tow-ahead) <= (maximum-speed / 2)
+     [set speed ((distance (tow-ahead) - min-trailing-distance) * 2)] ;
+     if speed < 0.05
+     [set speed 0]
+     ] 
+end
+
+
+to-report adjust-speed
+  let result 0.5
+  if heading = 90
+      [ set result precision (random-normal-in-bounds (upstream-speed-target ) 0.1 (minimum-speed ) (maximum-speed ) ) 2]
+  if heading = 270
+      [ set result precision (random-normal-in-bounds (downstream-speed-target) 0.1 (minimum-speed + 0.1) (maximum-speed + 0.1) ) 2]
+   report result
+end
+
+to-report random-normal-in-bounds [mid dev mmin mmax] ;; for setting a speed using a random-normal within bounds distribution
+  let result random-normal mid dev
+  if result < mmin or result > mmax
+    [ report random-normal-in-bounds mid dev mmin mmax ]
+  report result
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;Tow Speed & Position Controls;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to evaluate-tow-movements
+  ;;anytime base passing and slowing evaluations
+  ask tows[  
+  if Allow-Passing?  ;;tow procedures when passing is allowed is default
+   [pass-tows] 
+  if not Allow-Passing? ;;tow procedures when passing is not allowed is default
+   [slow-tows] 
+  
+  ]
+  ;;anytime bridge navigation evaluations
+   ask tows [
+     if  Stop-at-Bridges? and  bridge-ahead? != False and multiple-bridges-ahead? != false
+     [clear-bridges]
+     
+   ]
+   
+    ask tows [yield-one-way]
+    
+    ;;nighttime travel evaluations
+  if time-of-day = "nighttime"  
+  [ask tows 
+  [if Stop-at-Bridges?   and multiple-bridges-ahead? = false
+      [bridge-night]
+   
+   ]
+  ask tows
+  [lock-night]
+  ask tows
+  [if Mooring-at-Night? 
+  [set speed 0]
+   
+  ]]
+  
+  ;;daytime lockage evaluations
+  if time-of-day = "daytime" ;or (time-of-day = "nighttime" and  Night-Locking-1 ) or (time-of-day = "nighttime" and Night-Locking-2) or (time-of-day = "nighttime" and Night-Locking-3)
+  [ask tows 
+      [start-lockage]
+   ;ask tows [if status = "Locking" [ count-lockage]] 
+  ]
+
+
+  ask tows [if status = "Locking" [ count-lockage]] 
+  ask tows [if status = "fleeting"  or status = "fleeting-pickup" [count-fleet-time]]
+  ask tows [if status = "casualty" [casualty-stall]]
+end
+
+      
+to pass-tows ;;basic calculation of speeds and positions relative to other tows ahead of you and oncoming based on set passing conditions
+if tow-ahead != nobody 
+ [let dist-tow-ahead abs ([xcor] of (tow-ahead) - xcor)
+  let speed-tow-ahead [speed] of tow-ahead
+  if (dist-tow-ahead < speed / 2)                               ;;if you are getting close to another tow
+    [ifelse (dist-tow-ahead > min-trailing-distance)        ;;follow anticipaotry or reactionary rules based on how close you are
+      [if (turns-to-oncoming <= turns-to-pass or spot-available = false ) ;; if you cannot pass without colliding or no spot to move into after passing  then try the next thing            
+          [if (turns-to-oncoming-previous >= turns-to-pass-previous or spot-available-previous != false ) ;; if you can pass wihtout colliding and there is a spot to move into after passing  when you switch to your origninal speed then set speed as original speed
+            [set speed original-speed]
+        if (one-way-ahead? != true  or lock-ahead? != true)                    ;now if one-way is ahead or lock is ahead then start slowing
+          [if (speed-tow-ahead < speed) and (speed-tow-ahead > dist-tow-ahead)
+             [set speed speed-tow-ahead]
+           if (speed-tow-ahead < speed) and (speed-tow-ahead < dist-tow-ahead) 
+             [set speed  ((dist-tow-ahead - 0.5 * min-trailing-distance))            ;;slow down and take up a position that is at least the min-trailing distance away after 2 ticks
+           if speed < 0.05 
+              [set speed 0] ]
+          ]  ]              
+      ]
+   
+   [if dist-tow-ahead <= min-trailing-distance 
+      [if (turns-to-oncoming <= turns-to-pass or spot-available = false ) ;; if you cannot pass without colliding or no spot to move into after passing  then try the next thing            
+          [if (speed-tow-ahead < original-speed) and (turns-to-oncoming-previous >= turns-to-pass-previous or spot-available-previous != false ) ;; if you can pass wihtout colliding and there is a spot to move into after passing  when you switch to your origninal speed then set speed as original speed
+            [set speed original-speed]
+        if (one-way-ahead? != true  or lock-ahead? != true)       ;; go a little slower than the tow ahead if you are close and cannot pass
+      [ set speed (0.5 * dist-tow-ahead) ;;slow down
+        if speed < 0.05
+        [set speed 0]
+        ]
+      ]]
+   ]
+    ]
+ ]  
+end
+
+                                                
+   
+to pass-tows-override ;segment by segment evaluation of passing or slowing procedures selected, if not passing then reduce speeds if slow tows ahead of you
+ if xcor >=  Major-Harbor
+ [ifelse Allow-Passing? [pass-tows][slow-tows]]
+ if  xcor <  Major-Harbor
+ [ifelse Allow-Passing?  [pass-tows] [slow-tows]]
+end
+
+
+to slow-tows ;;basic calculation of speeds and postions realtive to other tows in front of you based on assumption of reduced acceleration
+if tow-ahead != nobody 
+[ let dist-tow-ahead abs ([xcor] of (tow-ahead) - xcor)
+  let speed-tow-ahead [speed] of tow-ahead
+ifelse (dist-tow-ahead > min-trailing-distance) ;;if the tow ahead is not within minimum trailing distance of you
+      [ if (dist-tow-ahead < speed)                                          ;; if the tow-ahead is within 2 moves of you           
+      [ if (speed-tow-ahead < speed) and (speed-tow-ahead > dist-tow-ahead)  ;;and the tow is slower than you but moving faster than the distance between you
+        [set speed speed-tow-ahead]                                          ;;adopt the speed of the tow ahead
+        if (speed-tow-ahead < speed) and (speed-tow-ahead < dist-tow-ahead)   ;;if instead they are slower than you and also slower than the distance between you
+          [ set speed  ((dist-tow-ahead - 0.5 * min-trailing-distance))        ;;slow down and adopt a speed such that if they are to stop entirely you will take up a position that is at least the min-trailing distance away
+       if speed < 0.05                                                       
+        [set speed 0] ] 
+      ]
+      ]                                                           
+   
+    [if (dist-tow-ahead <= min-trailing-distance)  ;;if the tow identified as immediately ahead IS within the minimum trailing distance of you
+      [ set speed (0.5 * dist-tow-ahead) ;;slow down
+        if speed < 0.05
+        [set speed 0]
+        ]
+      ]
+   ]
+end
+
+to clear-bridges
+   if bridge-ahead? != False and multiple-bridges-ahead? != false
+       [ifelse previous-time-of-day = "nighttime" and time-of-day = "daytime"
+    [set speed original-speed]
+  [if time-to-clear-all-bridges > time-to-night 
+    [set speed original-speed
+   if time-to-clear-all-bridges > time-to-night 
+          [if abs (clear-to-bridge) <= speed / 2 or clear-to-bridge <= min-trailing-distance
+      [ifelse tow-between-you-and-bridge = false
+         [set speed ((clear-to-bridge - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0]]
+
+      [set speed  ((distance (tow-ahead) - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0]]
+      ]
+          ]
+    ]
+  ]
+ ]
+end 
+
+to bridge-night  ;;basic calculation of speeds and postions realtive to a bridge in front of you that you will not pass during the night
+  if bridge-ahead? != false 
+      [if abs (clear-to-bridge) <= speed / 2 or clear-to-bridge <= min-trailing-distance
+      [ifelse tow-between-you-and-bridge = false
+         [set speed ((clear-to-bridge - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0
+          set status "Bridge-delay"]]
+
+      [set speed  ((distance (tow-ahead) - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0
+          set status "Bridge-delay"]]
+      ]
+    ]
+end
+
+to bridge-night-override ;;if not stopping at bridges on a segment continue with normal movements
+   if Stop-at-bridges? and  xcor >=  Major-Harbor  [bridge-night]
+   if Stop-at-Bridges? and xcor <  Major-Harbor [bridge-night]
+end
+
+to lock-night
+  let l2 (min [who] of lockmgrs + 1)
+  let l1 (min [who] of lockmgrs)   
+  let x2 [xcor] of lockmgr l2
+  let x1 [xcor] of lockmgr l1
+  
+ if lock-ahead? != false
+  [ ifelse night-locking? = false ;;if night locking is not allowed at the lock ahead of you
+   [if arrival-time = 0 [set arrival-time lock-arrival-time]  
+     if abs (clear-to-lock) <= speed / 2 or precision (clear-to-lock) 1 <= min-trailing-distance
+    [ifelse tow-between-you-and-lock = false                      ;;if no tow between you and the lock, slow down and wait near the lock
+      [set speed ((clear-to-lock - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0
+          set status "Lock-delay"]]
+      [set speed  ((distance (tow-ahead) - min-trailing-distance) * 2)  ;;if there are other tows between you and the lock, wait behind the tow in front of you
+           if speed < 0.05
+        [set speed 0
+          set status "Lock-delay"]
+    ]]
+   ];;if night locking is allowed follow normal lockage procedures
+       [ifelse lock-full = false ;and tow-between-you-and-lock = false     ;;if no tow is currently locking
+      [ifelse arrival-time = min-arrival-time-lock                      ;;if you arrived first 
+        [foreach Locks                                                  ;;cycle through the possible locks
+          [if lock-ahead? = ?                                           
+        [ set xcor ?                                                    ;;take place in the lock and stop moving
+          set speed 0
+          set ycor 0
+          set status "Locking"
+          set count-down request-countdown ]                            ;;communicate with lock manager to determine how long you will stay in lock
+          ]]  
+       [ifelse tow-between-you-and-lock = false                       ;;if no tow is locking and you did not arrive first, if there ARE NOT other tows between you and the lock 
+         [set speed ((clear-to-lock - min-trailing-distance) * 2)      ;;slow down and/or wait near the lock
+           if speed < 0.05                                              ;;prevent negative speeds :)
+         [set speed 0]]                                                           
+         [set speed  ((distance (tow-ahead) - min-trailing-distance) * 2)  ;;if no tow is locking and you did not arrive first, if there ARE other tows between you and the lock, slow down and/or wait behind the tow in front of you
+           if speed < 0.05
+        [set speed 0
+          set status "Lock-delay"]]
+         ]]                                                                  ;;end of statement regarding position of tows between you and lock, end of statement regarding if  you arrived first
+      [ifelse tow-between-you-and-lock = false                        ;;if a tow is currently locking (lock-full = TRUE), and there ARE NOT other tows between you and the lock
+         [set speed ((clear-to-lock - min-trailing-distance) * 2)       ;;slow down and/or wait near the lock
+           if speed < 0.05
+         [set speed 0]]
+         [set speed ((distance (tow-ahead) - min-trailing-distance) * 2)    ;;if a tow is currently locking, and there ARE other tows between you and the lock, wait behind the tow in front of you
+           if speed < 0.05
+        [set speed 0
+          set status "Lock-delay"]]
+         ]] 
+       ] 
+end
+  
+to-report night-locking?
+  let l2 (min [who] of lockmgrs + 1)
+  let l1 (min [who] of lockmgrs)   
+  let x2 [xcor] of lockmgr l2
+  let x1 [xcor] of lockmgr l1
+  let n true
+  if (lock-ahead? = x1  and  not Night-Locking-1 ) 
+  [set n false]
+  if (lock-ahead? = x2 and not Night-Locking-2) 
+  [set n false]
+  report n
+end
+  
+to start-lockage
+  let l2 (min [who] of lockmgrs + 1)
+  let l1 (min [who] of lockmgrs)
+  let x2 [xcor] of lockmgr l2
+  let x1 [xcor] of lockmgr l1
+
+  if lock-ahead? != false          ;; if lock is directly ahead
+ [ifelse lock-closed? = false ;;if lock ahead is not closed
+   
+  [if arrival-time = 0 [set arrival-time lock-arrival-time]          ;;calculate your estimated arrival time for tow queueing as you approach the lock
+    if arrival-time = min-arrival-time-lock and speed = 0  [set speed original-speed]  ;;glitch override for when min-arrival-time tow has a speed of zero (when not closest to lock and decel to avoid tow ahead)
+   if abs (clear-to-lock) <= speed / 2 or precision (clear-to-lock) 1 <= min-trailing-distance   ;;???? if you are near-lock  run the following yield process, other wise you are free to move normally
+    
+    [ifelse lock-full = false ;and tow-between-you-and-lock = false     ;;if no tow is currently locking
+      [ifelse arrival-time = min-arrival-time-lock                      ;;if you arrived first 
+        [foreach Locks                                                  ;;cycle through the possible locks
+          [if lock-ahead? = ?                                           
+        [ set xcor ?                                                    ;;take place in the lock and stop moving
+          set speed 0
+          set ycor 0
+          set status "Locking"
+          set count-down request-countdown ]                            ;;communicate with lock manager to determine how long you will stay in lock
+          ]]  
+       [ifelse tow-between-you-and-lock = false                       ;;if no tow is locking and you did not arrive first, if there ARE NOT other tows between you and the lock 
+         [set speed ((clear-to-lock - min-trailing-distance) * 2)      ;;slow down and/or wait near the lock
+           if speed < 0.05                                              ;;prevent negative speeds :)
+         [set speed 0
+           set status "Lock-delay"]]                                                           
+         [set speed  ((distance (tow-ahead) - min-trailing-distance) * 2)  ;;if no tow is locking and you did not arrive first, if there ARE other tows between you and the lock, slow down and/or wait behind the tow in front of you
+           if speed < 0.05
+        [set speed 0
+          set status "Lock-delay"]]
+         ]]                                                                  ;;end of statement regarding position of tows between you and lock, end of statement regarding if  you arrived first
+      [ifelse tow-between-you-and-lock = false                        ;;if a tow is currently locking (lock-full = TRUE), and there ARE NOT other tows between you and the lock
+         [set speed ((clear-to-lock - min-trailing-distance) * 2)       ;;slow down and/or wait near the lock
+           if speed < 0.05
+         [set speed 0]]
+         [set speed ((distance (tow-ahead) - min-trailing-distance) * 2)    ;;if a tow is currently locking, and there ARE other tows between you and the lock, wait behind the tow in front of you
+           if speed < 0.05
+        [set speed 0
+          set status "Lock-delay"]]
+         ]]                                                              ;;end of statement regarding position of tows between you and lock 
+        ]
+  
+  [if arrival-time = 0 [set arrival-time lock-arrival-time]   ;;statement for slowing when lock is closed
+   if abs (clear-to-lock) <= speed / 2 or precision (clear-to-lock) 1 <= min-trailing-distance
+    [ifelse tow-between-you-and-lock = false                      ;;if no tow between you and the lock, slow down and wait near the lock
+      [set speed ((clear-to-lock - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0
+          set status "Lock-delay"]]
+      [set speed  ((distance (tow-ahead) - min-trailing-distance) * 2)  ;;if there are other tows between you and the lock, wait behind the tow in front of you
+           if speed < 0.05
+        [set speed 0
+          set status "Lock-delay"]
+      ]]
+      ]    ;end of statement for when locks are closed
+ ]
+                                                         
+end
+
+to-report lock-closed?
+  let l2 (min [who] of lockmgrs + 1)
+  let l1 (min [who] of lockmgrs)   
+  let x2 [xcor] of lockmgr l2
+  let x1 [xcor] of lockmgr l1
+  let n true
+  if (lock-ahead? = x1  and  not Close-Lock-1 ) 
+  [set n false]
+  if (lock-ahead? = x2 and not Close-Lock-2) 
+  [set n false]
+  report n
+end
+
+to count-lockage                            ;;remain in lock for specified time interval
+     ifelse count-down > 0
+         [set count-down (count-down - 1)
+           set speed 0]
+         [if count-down < 0
+           [set count-down 111]
+           if count-down = 0 
+           [set count-down 111                   ;; placeholder count-down
+           set arrival-time 0
+           if heading = 90 [set ycor -1]
+           if heading = 270 [set ycor 1]
+           set speed original-speed speed-control ;;go back to the speed you desire unless it violates speed thresholds
+           set status "In-transit"
+         ];]
+   ]
+end  
+
+to yield-one-way 
+  if one-way-ahead? != false and Activate-One-Way-Zone?
+    [if arrival-time-oneway = 0 [set arrival-time-oneway one-way-arrival-time] 
+      if arrival-time = min-arrival-time-oneway and speed = 0  [set speed original-speed]  ;;glitch override for when min-arrival-time tow has a speed of zero (when not closest to lock and decel to avoid tow ahead)
+      if abs (clear-to-one-way) <= speed / 2 or clear-to-one-way <= min-trailing-distance
+     [ifelse tow-oncoming-one-way != false
+      [ifelse tow-between-you-and-oneway != false                                                                         
+         [set speed ((distance (tow-ahead) - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0
+          set status "one-way-delay"]]
+        [set speed ((clear-to-one-way - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0
+          set status "one-way-delay"]]
+      ]                                                                      ;;if tow-oncoming on the one-way section is false
+      [if tows-near-one-way != nobody and count tows-near-one-way >= 1
+        [if arrival-time-oneway > min-arrival-time-oneway 
+        [ifelse tow-between-you-and-oneway != false                           
+        [set speed ((distance (tow-ahead) - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0
+          set status "one-way-delay"]]
+        [set speed ((clear-to-one-way - min-trailing-distance) * 2)
+           if speed < 0.05
+        [set speed 0
+          set status "one-way-delay"]]
+    ]]
+      ]]
+    ]
+   
+end 
+
+to fleeting-stop
+  set xcor  Major-Harbor if heading = 90 [set ycor -2] if heading = 270 [set ycor 2] set speed 0
+    set status "fleeting"  if heading = 270 [set location "Below Nashville"] if heading = 90 [set location "Above Nashville"]
+    
+  if heading = 90 [let diff1 ([connected-barges] of self - Max-Barges) 
+    let diff2 ([connected-barges] of self - round ([horsepower] of self / Horsepower/Barge-ratio))
+    set count-down 2 + max (list diff1 diff2)]
+  if heading = 270 [let diff1 ([connected-barges] of self - Max-Barges)
+     let diff2 ([connected-barges] of self - round ([horsepower] of self / Horsepower/Barge-Ratio))
+     set count-down 2 + max (list diff1 diff2)] 
+  let name 0
+  repeat count-down [ask one-of out-link-neighbors [set xcor  Major-Harbor if heading = 90 [set ycor -3] if heading = 270 [set ycor  3] set zcor elevation set name who set status "Waiting"]  ask out-link-to barge name [die]]
+  set load count my-out-links
+  set connected-barges count my-out-links
+end
+
+to fleeting-pickup
+  set xcor  Major-Harbor if heading = 90 [set ycor -2] if heading = 270 [set ycor 2] set speed 0
+    set status "fleeting-pickup"  if heading = 270 [set location "Below Nashville"] if heading = 90 [set location "Above Nashville"]
+    
+  if heading = 90 [let diff1 (current-up-fleet) 
+    let diff2 (round ([horsepower] of self / Horsepower/Barge-ratio) - [connected-barges] of self)
+    set count-down 2 + min (list diff1 diff2)]
+  if heading = 270 [let diff1 ( current-down-fleet)
+     let diff2 (round ([horsepower] of self / Horsepower/Barge-Ratio) - [connected-barges] of self )
+     set count-down 2 + min (list diff1 diff2)] 
+  let name 0
+  if heading = 90[
+  repeat (count-down - 2) [create-link-to one-of barges with [xcor = Major-Harbor and ycor = -3 and no-barge-links? and zcor = Max-elevation-up-fleet] [tie] ]]
+    if heading = 270[
+  repeat (count-down - 2) [create-link-to one-of barges with [xcor = Major-Harbor and ycor = 3 and no-barge-links? and zcor = Max-elevation-down-fleet] [tie] ]]
+  set load count my-out-links
+  set connected-barges count my-out-links
+end
+
+to count-fleet-time
+  ifelse count-down > 0
+  [set count-down (count-down - 1)
+    set speed 0
+    ]
+    [ set count-down 111
+    if heading = 90 [set ycor -1] if heading = 270 [set ycor 1]
+    set speed original-speed speed-control
+    set status "In-transit"]
+end
+
+
+to spawn-casualties
+  if Stage1 = "Normal"
+  [
+  if congestion = "none" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+  [if random 1000 < 5
+    [set speed 0
+      set status "casualty"]
+  ]
+  if congestion = "low" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+    [if random 99 < 1
+      [set speed 0
+      set status "casualty"]
+  ]
+  if congestion = "medium" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+   [if random 99 < 3
+     [set speed 0
+       set status "casualty"]
+   ]
+   if congestion = "high" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+   [if random 99 < 5
+     [set speed 0
+       set status "casualty"]
+   ]
+  ]
+  if Stage1 = "High-Water"
+  [
+  if congestion = "none" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+    [if random 1000 < 5
+      [set speed 0
+      set status "casualty"]
+  ]
+    if congestion = "low" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+  [if random 99 < 80
+    [set speed 0
+      set status "casualty"]
+  ]
+  if congestion = "medium" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+   [if random 99 < 7
+     [set speed 0
+       set status "casualty"]
+   ]
+   if congestion = "high" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+   [if random 99 < 10
+     [set speed 0
+       set status "casualty"]
+   ]
+  ]
+    if Stage1 = "Extreme-High-Water"
+  [
+  if congestion = "none" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+    [if random 1000 < 5
+      [set speed 0
+      set status "casualty"]
+  ]
+    if congestion = "low" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+  [if random 99 < 15
+    [set speed 0
+      set status "casualty"]
+  ]
+  if congestion = "medium" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+   [if random 99 < 17
+     [set speed 0
+       set status "casualty"]
+   ]
+   if congestion = "high" and (speed > upstream-speed-target or bridge-ahead? != false or one-way-ahead? != false) and [pcolor] of patch-ahead 0 != red and [pcolor] of patch-ahead 1 != red and (member? floor(xcor) Dams = false)
+   [if random 99 < 20
+     [set speed 0
+       set status "casualty"]
+   ]
+  ]
+end
+
+to casualty-stall
+  set shape "exclamation" set color red set size 2 
+  ask patch-at 0 0 -1 [set pcolor  red]
+    if count-down > 0
+    [set count-down -10]
+  ifelse count-down < 0             
+    [set count-down (count-down + 1)
+     set speed 0]
+   [ask patch-at 0 0 -1 [set pcolor blue]
+     ask out-link-neighbors [die]
+     die]
+  
+ 
+end
+         
+to move
+  if speed != last-speed and speed > 0  [set last-speed speed]
+  if last-speed = 0 [ set last-speed original-speed]
+  jump speed / 2  
+end
+  
+ 
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;Tow Movement Reporters;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
+
+
+to-report tows-ahead? ;; report the agent-set of tows-ahead of you
+  if heading = 90 and count other tows with [xcor > [xcor] of myself and heading = 90] >= 1
+  [report other tows with [xcor > [xcor] of myself and heading = 90] ]
+  if heading = 270 and count other tows with [xcor < [xcor] of myself and heading = 270] >= 1
+  [report other tows with [xcor < [xcor] of myself and heading = 270] ] 
+  if heading = 90 and count other tows with [xcor > [xcor] of myself and heading = 90] = 0
+  [report nobody ]
+  if heading = 270 and count other tows with [xcor < [xcor] of myself and heading = 270] = 0
+  [report nobody ]
+end
+
+to-report tow-ahead ;; report the closest tow ahead of you
+  ifelse tows-ahead? != nobody
+  [if heading = 90
+    [report min-one-of tows-ahead? [xcor]]
+   if heading = 270
+    [report max-one-of tows-ahead? [xcor]]
+  ]
+  [report nobody]
+end
+  
+to-report clear-ahead ;; report the distance to the closest tow ahead of you
+  let n 0
+  if tow-ahead != nobody
+  [set n distance (tow-ahead)]   report n
+end
+
+to-report tows-oncoming? ;; report the agent-set of tows-oncoming
+  if heading = 90 and count tows with [xcor > [xcor] of myself and heading = 270] >= 1
+  [report other tows with [xcor > [xcor] of myself and heading = 270] ]
+  if heading = 270 and count tows with [xcor < [xcor] of myself and heading = 90] >= 1
+  [report other tows with [xcor < [xcor] of myself and heading = 90] ]
+  if heading = 90 and count other tows with [xcor > [xcor] of myself and heading = 270] = 0
+  [report nobody ]
+  if heading = 270 and count other tows with [xcor < [xcor] of myself and heading = 90] = 0
+  [report nobody ]
+end
+
+
+to-report tow-oncoming ;; report the closest oncoming tow
+   ifelse tows-oncoming? != nobody
+   [if heading = 90
+     [report min-one-of tows-oncoming? [xcor]]
+    if heading = 270
+     [report max-one-of tows-oncoming? [xcor]]
+   ]
+   [report nobody]
+end
+
+to-report clear-oncoming ;; report the distance to the closest oncoming tow
+  let n 0
+  if tow-oncoming != nobody
+  [set n distance (tow-oncoming)]
+  report n
+end
+
+to-report bridge-ahead? ;; check for bridges directly ahead and return the number for the bridge directly ahead   
+  let result false
+      if heading = 90 [let B reverse Bridge-eval
+  foreach B
+    [ if position ? B < length B - 1
+  [if ((xcor + maximum-speed / 2) > ?  and xcor < ? ) or ((xcor + min-trailing-distance) > (? ) and xcor < (? )) 
+  [set result  ?]
+  ]]]
+    
+  if heading = 270
+  [let B2  bridge-eval
+  foreach B2
+    [ if position ? B2 < length B2 - 1
+  [if ((xcor - maximum-speed / 2) < ?  and xcor > ? ) or ((xcor - min-trailing-distance) < (?) and xcor > (? ))
+  [set result  ?]
+  ]]   
+  ]
+  report result
+end
+
+to-report multiple-Bridges-ahead?
+  let result false
+  if bridge-ahead? != false[
+  if heading = 90 
+  [ foreach Bridge-eval
+    [ if position ? Bridge-eval < length Bridge-eval - 2
+  [if Bridge-ahead? = ? and item ((position ? Bridges-2) + 1) Bridges-2 = 0
+  [set result item ((position ? Bridge-eval)+ 1) Bridge-eval]
+  ]]]
+    
+  if heading = 270
+  [let Bridge-eval2 reverse (Bridge-eval)
+    let Bridge-reverse reverse Bridges-2
+    foreach Bridge-eval2
+    [ if position ? Bridge-eval2 < length Bridge-eval2 - 2
+  [if Bridge-ahead? = ? and item ((position ? Bridge-reverse) + 1) Bridge-reverse = 0
+  [set result item ((position ? Bridge-eval2) + 1) Bridge-eval2]
+  ]]   
+  ]]
+  report result
+end
+  
+to-report time-to-clear-all-bridges
+  let n 10
+  if multiple-bridges-ahead? != false [
+    if heading = 90 and speed != 0
+  [set n (((multiple-bridges-ahead? - xcor)/ (speed / 2)) )]
+   if heading = 270 and speed != 0
+   [set n (((xcor - multiple-bridges-ahead?)/ (speed / 2)) )]
+  ]
+     report n
+  end
+
+to-report tow-between-you-and-bridge ;;check for other tows between you and the bridge directly ahead
+  let result false
+  if tows-ahead? != nobody
+  [foreach Bridge-eval
+    [if position ? Bridge-eval < length Bridge-eval - 1
+      [
+    if heading = 90
+    [if bridge-ahead? = ? and any? tows-ahead? with [xcor < ?]
+      [set result true]
+
+    ]
+    if heading = 270
+    [if bridge-ahead? = ? and any? tows-ahead? with [xcor > ?]
+      [set result true]
+    ]
+    ]
+  ]
+  ]
+  report result
+  end
+
+to-report clear-to-bridge ;;report nce to a bridge patch
+ let n 0
+ if bridge-ahead? != false
+ [foreach Bridge-eval
+   [
+   if heading = 90
+   [if bridge-ahead? = ?
+   [set n ? - xcor]
+   ]
+ if heading = 270
+   [if bridge-ahead? = ?
+   [set n xcor - ?]
+   ]
+   ]
+ ]
+   report n
+end
+    
+
+to-report lock-ahead? ;; check for locks directly ahead and return the number for the lock directly ahead
+  let result false
+
+  foreach Locks
+;[if position ? Dams < length Dams - 1
+    [
+  if heading = 90
+  [
+  if ((xcor + maximum-speed / 2 ) > ? and xcor < ? ) 
+  [set result ?]
+   ]
+  if heading = 270
+  [
+  if ((xcor - maximum-speed / 2) < ? and xcor > ?) 
+  [set result ?]
+  ]
+   ;]
+  ]
+  report result
+  
+  
+end
+
+to-report tow-between-you-and-lock ;;check for other tows between you and the lock directly ahead and report agentset of tows between you and lock if true
+  let result false
+  if tows-ahead? != nobody and lock-ahead? != false
+  [foreach Locks
+    ;[if position ? Bridges < length Bridges - 1
+      [
+    if heading = 90
+    [if lock-ahead? = ? and any? tows-ahead? with [xcor < ?]
+      [set result tows-ahead? with [xcor < ?]]
+    ]
+    if heading = 270
+    [if lock-ahead? = ? and any? tows-ahead? with [xcor > ?]
+      [set result tows-ahead? with [xcor > ?]]
+    ]
+  ]
+    ;]
+  ]
+  report result
+  
+  
+end
+
+to-report clear-to-lock ;;report distance to a lock and dam patch
+ let n 0
+ if lock-ahead? != false
+ [foreach Dams
+   [
+   if heading = 90
+   [if lock-ahead? = ?
+   [set n ? - xcor]
+   
+   ]
+ if heading = 270
+   [if lock-ahead? = ?
+   [set n xcor - ?]
+   ]
+ ]]
+   report n
+   
+  
+end
+
+to-report tows-near-lock ;; report the agentset of tows near a lock
+  let result nobody
+  if lock-ahead? != false
+   [foreach Dams
+     [
+    if lock-ahead? = ?
+    [set result tows with [lock-ahead? = ?]]
+     ]
+   ]
+  report result  
+end
+
+to-report lock-full ;; report if a lock is in use
+  let result false
+  if tow-ahead != nobody 
+  [foreach locks
+    [if lock-ahead? = ? and any? other tows-ahead? with [(xcor) = ? and ycor = 0]
+      [set result true]
+    ]
+  ]
+  if tow-oncoming != nobody 
+  [foreach locks
+    [if lock-ahead? = ? and any? tows-oncoming? with [(xcor) = ? and ycor = 0]
+      [set result true]
+    ]
+  ]
+  
+  report result
+end
+
+to-report lock-arrival-time ;; report the estimated arrival time at the lock given current speed and distance from the lock, for FIFO
+  let n 0
+  if lock-ahead? != false
+  [if  tow-between-you-and-lock = false
+  [set n ((clear-to-lock / (last-speed / 2)) + ticks)]
+  if  tow-between-you-and-lock != false
+  [ifelse [arrival-time] of tow-ahead > ((clear-to-lock / (last-speed / 2)) + ticks)
+    [set n [arrival-time] of tow-ahead + abs(distance(tow-ahead)/ (last-speed / 2))]
+    [set n ((clear-to-lock / (last-speed / 2)) + ticks)]
+  ]
+  ]
+  report n
+end
+
+to-report min-arrival-time-lock
+report [arrival-time] of (min-one-of tows-near-lock [arrival-time])
+end
+
+to-report locking ;; report if you are currently locking
+  let result false
+  foreach locks
+  [
+  if member? xcor  locks  and ycor = 0
+      [set result true]
+  ]
+  report result
+end
+
+
+to-report night-locking-allowed?
+  let n false
+  if lock-ahead? = [xcor] of lockmgr (min [who] of lockmgrs) and Night-Locking-1
+  [set n true]
+  if lock-ahead? = [xcor] of lockmgr (min [who] of lockmgrs + 1) and Night-Locking-2
+  [set n true]
+
+  report n
+end
+
+
+to-report one-way-ahead? ;; check for one-way segment ahead of you
+  let result false
+  if heading = 90
+  [if ((xcor + maximum-speed / 2 ) > (One-way-buoy-1 ) and xcor < (One-way-buoy-1 )) ;;or ((xcor + min-trailing-distance) > (One-way-buoy-1 ) and xcor < (One-way-buoy-1 )) ; change last-speed to max-speed to eliminate chance that slow tows in front won't register one-way ahead awhile fast tows behind do
+  [set result true]
+  ]
+  if heading = 270
+  [if ((xcor - maximum-speed / 2 ) < (One-way-buoy-2) and xcor > (One-way-buoy-2)) ;;or ((xcor - min-trailing-distance) < (One-way-buoy-2) and xcor > (One-way-buoy-2))
+  [set result true]
+  ]
+  report result
+end
+
+to-report clear-to-one-way ;;distance to a one-way buoy
+  let n 0
+  ;if one-way-ahead? != false
+  ;[
+    if heading = 90
+  [set n one-way-buoy-1 - xcor]    
+  if heading = 270
+  [set n xcor - one-way-buoy-2] 
+  ;]
+  report n
+end
+
+to-report tow-between-you-and-oneway ;;check for other tows between you and the lock directly ahead and report agentset of tows between you and lock if true
+  let result false
+  if tows-ahead? != nobody and one-way-ahead? != false
+  [
+    if heading = 90
+    [if one-way-ahead? = true and any? tows-ahead? with [xcor < One-way-buoy-1]
+      [set result tows-ahead? with [xcor < One-way-buoy-1]]
+     ]
+    if heading = 270
+    [if one-way-ahead? = true  and any? tows-ahead? with [xcor > One-way-buoy-2]
+      [set result tows-ahead? with [xcor > One-way-buoy-2]]
+    ]
+  ]
+  report result
+end
+
+to-report tows-near-one-way ;; report the agentset of tows near a one-way section
+  let result nobody
+  if one-way-ahead? != false
+   [set result tows with [one-way-ahead? = TRUE]] 
+  report result  
+end
+
+to-report tow-oncoming-one-way ;; report if an oncoming-tow is moving on the one-way segment
+  let result false
+  if tow-oncoming != nobody and one-way-ahead? != false
+  [if [xcor] of tow-oncoming <= One-way-buoy-2 and [xcor] of tow-oncoming >= One-way-buoy-1 
+      [set result true]
+    ]
+  report result
+end
+
+to-report one-way-arrival-time ;; report the estimated arrival time at the lock given current speed and distance from the lock, for FIFO
+  let n 0
+  if one-way-ahead? != false
+  [if  tow-between-you-and-oneway = false
+  [set n ((clear-to-one-way / (last-speed / 2)) + ticks)]
+  if  tow-between-you-and-oneway != false
+  [ifelse [arrival-time] of tow-ahead > ((clear-to-one-way / (last-speed / 2)) + ticks)
+    [set n [arrival-time] of tow-ahead + abs(distance(tow-ahead)/ (last-speed / 2))]
+    [set n ((clear-to-one-way / (last-speed / 2)) + ticks)]
+  ]
+  ]
+  report n
+end
+
+to-report min-arrival-time-oneway
+ report [arrival-time-oneway] of (min-one-of tows-near-one-way [arrival-time-oneway])
+end
+
+
+to-report congestion
+  let result "none"
+  if count other tows-on patch-ahead 0 > 1
+  [set result "low"]
+  if count other tows-on patch-ahead 0 > 2
+  [set result "medium"]
+  if count other tows-on patch-ahead 0 > 3
+  [set result "high"]
+  report result
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;passing subroutine reporters;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+to-report turns-to-pass ;;check to see how many ticks it will take before you overtake the tow-ahead, round up
+  let result 0
+  if tow-ahead != nobody and speed != [speed] of tow-ahead and speed != 0
+   [set result ceiling (clear-ahead / ((speed / 2) - ([speed] of tow-ahead / 2)))]
+   report result 
+end
+
+to-report turns-to-oncoming ;; check to see how many ticks it will take to meet an on-coming tow, round-down
+  let result 10
+  if tow-oncoming != nobody and speed != 0 and [speed] of tow-oncoming != 0
+  [set result floor ( clear-oncoming / ((speed / 2) + ([speed] of tow-oncoming / 2)))]
+  report result 
+  end
+
+
+to-report spot-available ;; check  to see if there is yet another tow on the patch to which you would move if you pass the tow-ahead, round down
+  let result false
+  if heading = 90
+  [
+  if not (any? other tows-on patch-ahead floor((speed / 2) * (turns-to-pass ) ))
+  [set result true]
+  ]
+  if heading = 270
+  [
+  if not (any? other tows-on patch-ahead floor((speed / 2) * (turns-to-pass ) ))
+  [set result true]
+  ]
+  report result
+end
+
+to-report turns-to-pass-previous ;;check to see how many ticks it will take before you overtake the tow-ahead, round up
+  let result 0
+  if tow-ahead != nobody and original-speed != [speed] of tow-ahead
+   [set result ceiling (clear-ahead / ((original-speed / 2) - ([speed] of tow-ahead / 2)))]
+   report result 
+end
+
+to-report turns-to-oncoming-previous ;; check to see how many ticks it will take to meet an on-coming tow, round-down
+  let result 10
+  if tow-oncoming != nobody and original-speed != 0 and [speed] of tow-oncoming != 0
+  [set result floor ( clear-oncoming / ((original-speed / 2) + ([speed] of tow-oncoming / 2)))]
+  report result 
+  end
+
+to-report spot-available-previous ;; check  to see if there is yet another tow on the patch to which you would move if you pass the tow-ahead, round down
+  let result false
+  if heading = 90
+  [
+  if not (any? other tows-on patch-ahead floor((original-speed / 2) * (turns-to-pass-previous ) ))
+  [set result true]
+  ]
+  if heading = 270
+  [
+  if not (any? other tows-on patch-ahead floor((original-speed / 2) * (turns-to-pass-previous ) ))
+  [set result true]
+  ]
+  report result
+end
+
+
+
+
+
+
+
+to update-speed ;;; may want to include a communication with oncoming tow feature with a prob that the oncoming tow will slow to allow you to 
+  
+  
+if tow-ahead != nobody
+[  let dist-tow-ahead abs ([xcor] of (tow-ahead) - xcor)
+   let speed-tow-ahead [speed] of tow-ahead
+
+   ifelse (dist-tow-ahead > min-trailing-distance)
+      [if (speed-tow-ahead < original-speed) and (turns-to-oncoming-previous >= turns-to-pass-previous or spot-available-previous != false) ;; if there is a tow-oncoming  or no spot to move into after passing a slower tow slow down
+      [set speed original-speed]
+   ]
+   [if dist-tow-ahead <= min-trailing-distance 
+      [if (speed-tow-ahead <= original-speed) and (turns-to-oncoming-previous >= turns-to-pass-previous or spot-available-previous != false)                                 ;; go a little slower than the tow ahead if you are close and cannot pass
+
+      [set speed original-speed]
+      ]
+   ]
+]
+  
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;; Add New Barges;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to add-barges ;;add some barges 
+    if ticks mod 10 = 0
+    [
+  set-default-shape barges "square"
+  create-barges one-of [20 25]
+  [
+    set color one-of [  green yellow white cyan orange magenta violet]
+    set size 0.5
+    set xcor min-pxcor + 1
+    set ycor -3
+    set zcor elevation - 0.5
+    set heading 90
+    set previous-status  "Waiting"
+    set status  "Waiting"
+  ]
+  
+  create-barges one-of [20 25]
+  [
+    set color one-of [  green yellow white cyan orange magenta violet]
+    set size 0.5
+    set xcor (max-pxcor - 1) 
+    set ycor 3
+    set zcor elevation - 0.5
+    set heading 270
+    set previous-status  "Waiting"
+    set status  "Waiting"
+  ]
+    ]
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;; Add New UpTows ;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to add-tows
+ if ticks mod 10 = 0 and (Stage = "Normal") ;;every five hours any time of the day
+ [let n random 10
+   if n > 5
+     [make-tows]
+ ]
+     
+ if ticks mod 2 = 0 and (Stage = "High-Water") and time-of-day = "daytime" ;;every five hours as long as it isn't night
+ [let n random 10
+  if n > 8
+     [make-tows]
+ ]
+     
+ if ticks mod 10 = 0 and (Stage = "Extreme-High-Water") and time-of-day = "daytime" ;;every five hours as long as it isn't night
+ [let n random 10
+  if n > 5
+     [make-tows]
+ ]
+end
+  
+to make-tows ;;add 1 or zero new tows on both sides of river
+    
+   if not any? tows-on patch  (min-pxcor + 1) -1 3 or not any? tows-on patch  (min-pxcor + 1) -1 4 or not any? tows-on patch (min-pxcor + 1) -1 5 ;;if there are no other tows on the starting patch 
+   [create-tows one-of [1 ]
+  [
+    let name who 
+    set color black set size 0.5 set heading  90 
+    set xcor min-pxcor + 1 set ycor -1
+    set count-down 100 
+    if (Stage = "Normal") [set zcor elevation - 1.25] if (Stage = "High-Water") [set zcor elevation - 0.25 ] if (Stage = "Extreme-High-Water") [set zcor elevation + 0.75] ;; adjust the elevation of the tow depending on the stage
+    set horsepower one-of [1250 1230 1710 1730 600 850 700 220 1200 1800 900 3800 400 850 3200 1200 900 400 440 1900 430 600 440 750 210 900 220 1280 900 250 1800 700 250 550 210 800 800 4800 1570 730 600 775 3600 600 1410 1200]
+    ask tow name
+      [ifelse  (horsepower / Horsepower/Barge-Ratio) < Max-Barges [set load round (horsepower / Horsepower/Barge-Ratio)]
+        [ set load Max-Barges] 
+      set speed  (random-normal-in-bounds upstream-speed-target (upstream-speed-target * .25) minimum-speed maximum-speed) 
+      set original-speed speed
+      set location "Below Nashville"
+      set status "pickup"
+      set birthday ticks
+      create-connections-to-tows ]
+  ]]
+    
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;; Add New DownTows ;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  if not (any? tows-on patch  (max-pxcor - 1) 1 3) or not (any? tows-on patch (max-pxcor - 1) 1 4) or not (any? tows-on patch  (max-pxcor - 1) 1 5)
+  [create-tows one-of [1 ]
+  [let name who 
+    set color black set size 0.5 set heading  270
+    set xcor (max-pxcor - 1)  set ycor 1
+    set count-down 100 
+    if (Stage = "Normal") [set zcor elevation - 1.25] if (Stage = "High-Water") [set zcor elevation - 0.25 ] if (Stage = "Extreme-High-Water") [set zcor elevation + 0.75] ;; adjust the elevation of the tow depending on the stage
+    set horsepower one-of [1250 1230 1710 1730 600 850 700 220 1200 1800 900 3800 400 850 3200 1200 900 400 440 1900 430 600 440 750 210 900 220 1280 900 250 1800 700 250 550 210 800 800 4800 1570 730 600 775 3600 600 1410 1200] 
+    
+     ask tow name
+      [ifelse  (horsepower / Horsepower/Barge-Ratio) < Max-Barges[set load round (horsepower / Horsepower/Barge-Ratio)]
+        [ set load Max-Barges] 
+      set speed (random-normal-in-bounds downstream-speed-target (downstream-speed-target * .33) minimum-speed maximum-speed)  
+      set original-speed speed
+      set location "Above Nashville"
+      set status "pickup"
+      set birthday ticks
+      create-connections-to-tows]
+  ]]
+
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;Remove Old Tows Barges and Links ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to kill-tows-barges ;; once tow or barge passes end of segment remove from model
+    
+ask tows 
+  [if will-fall-off-earth = true
+    [set deathday ticks + 1
+      set transit-time (deathday - birthday)]
+  if falling-off-earth = true
+  [ask out-link-neighbors [die]]
+  if falling-off-earth = true
+    [die]
+ ]
+
+end
+
+
+
+to-report will-fall-off-earth
+  let f false
+  if heading = 270
+  [if xcor - speed  <= min-pxcor
+    [set f true]]
+  if heading = 90
+  [if xcor + speed  >= max-pxcor
+    [set f true]]
+    report f
+  end
+
+to-report falling-off-earth
+  let f false
+  if heading = 270
+  [if xcor - speed / 2 <= min-pxcor
+    [set f true]]
+  if heading = 90
+  [if xcor + speed / 2 >= max-pxcor
+    [set f true]]
+    report f
+  end
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;VARIOUS REPORTERS TO MONITOR;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+to-report accidents 
+  let n 0
+  ask tows [if any? tows with [status = "casualty" and previous-status != "casualty"]
+  [set n count  tows with [status = "casualty" and previous-status != "casualty"]]]
+   report n
+end
+
+to-report new-cargo-delivered
+  let n 0
+  let t 0
+  ask tows [set t tows with [falling-off-earth = true]]
+  if t != 0 [set n sum [connected-barges] of t]
+  report n
+end
+    
+; Copyright 1997 Uri Wilensky.
+; See Info tab for full copyright and license.
+@#$#@#$#@
+GRAPHICS-WINDOW
+0
+0
+6030
+371
+-1
+8
+20.0
+1
+10
+1
+1
+1
+0
+1
+1
+1
+0
+300
+-8
+8
+0
+10
+1
+1
+1
+ticks
+6.0
+
+BUTTON
+12
+80
+83
+120
+go
+go\n\n
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+PLOT
+184
+14
+711
+350
+Tow speeds
+time
+speed
+0.0
+300.0
+0.0
+3.5
+true
+true
+"" ""
+PENS
+"Ave upstream speed" 1.0 0 -16777216 true "" "ifelse (any? tows with [heading = 90])  [plot mean [speed] of tows with [heading = 90]][plot 0]"
+"Ave downstream speed" 1.0 0 -5298144 true "" "ifelse (any? tows with [heading = 270] )  [plot mean [speed] of tows with [heading = 270]][plot 0]"
+
+PLOT
+728
+14
+1226
+182
+Number of Tows on River
+Time
+Number of tows
+0.0
+300.0
+0.0
+25.0
+true
+true
+"" ""
+PENS
+"# upstream tows" 1.0 0 -16777216 true "" "plot count tows with [heading = 90]"
+"# downstream tows" 1.0 0 -5298144 true "" "plot count tows with [heading = 270]"
+
+PLOT
+728
+191
+1225
+348
+ Number of Barges on River
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"Total barges" 1.0 0 -16777216 true "" "plot count links"
+"Ave barges per tow" 1.0 0 -7500403 true "" "if count tows > 0 [plot (count links)/(count tows)]"
+
+CHOOSER
+16
+131
+165
+176
+Stage
+Stage
+"Normal" "High-Water" "Extreme-High-Water"
+1
+
+BUTTON
+90
+80
+170
+120
+Go once
+go
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+22
+552
+217
+585
+min-trailing-distance
+min-trailing-distance
+0
+2
+0.5
+.1
+1
+miles
+HORIZONTAL
+
+MONITOR
+13
+14
+171
+71
+Date-Time
+time:show tick-datetime \"yyyy-MM-dd HH:mm\"
+17
+1
+14
+
+SLIDER
+231
+467
+426
+500
+minimum-speed
+minimum-speed
+1
+5
+1
+0.1
+1
+miles/hr
+HORIZONTAL
+
+SLIDER
+232
+509
+427
+542
+maximum-speed
+maximum-speed
+0.5
+15
+10
+0.5
+1
+miles/hr
+HORIZONTAL
+
+TEXTBOX
+30
+370
+611
+473
+TOW CONTROLS\n\nSliders for adjusting the average, minimum, and maximum speeds of vessels on the river. Sliders for controlling the trailing distance and passing clearance requirements. Set Horsepower to Barge ratio to restrict loading of barges. Override no travel at night during extreme-high-water conditions. Override stopping before bridges at night during high-water conditions.
+11
+0.0
+1
+
+INPUTBOX
+994
+512
+1085
+572
+One-way-buoy-1
+175
+1
+0
+Number
+
+INPUTBOX
+1098
+512
+1188
+572
+One-way-buoy-2
+195
+1
+0
+Number
+
+SWITCH
+442
+467
+597
+500
+Mooring-at-Night?
+Mooring-at-Night?
+1
+1
+-1000
+
+SLIDER
+21
+466
+217
+499
+Horsepower/Barge-Ratio
+Horsepower/Barge-Ratio
+50
+400
+250
+50
+1
+NIL
+HORIZONTAL
+
+SWITCH
+995
+466
+1189
+499
+Activate-One-Way-Zone?
+Activate-One-Way-Zone?
+0
+1
+-1000
+
+SWITCH
+443
+510
+598
+543
+Stop-at-Bridges?
+Stop-at-Bridges?
+0
+1
+-1000
+
+SWITCH
+627
+550
+772
+583
+Night-Locking-1
+Night-Locking-1
+1
+1
+-1000
+
+TEXTBOX
+629
+371
+964
+452
+LOCK MASTER CONTROLS\n\nSlider for setting the typical lockage time. Turn locking restrictions (reduce number of barges in one lockage from 6 to 3) on and off. Override prohibition of locking at night during high-water and extreme-high-water conditions.
+11
+0.0
+1
+
+TEXTBOX
+988
+373
+1220
+448
+ONE-WAY ZONE CONTROLS\n\nInput the starting and ending river-mile of a buoy indicating a one-way traffic zone and turn the one-way restriction ON and OFF.
+11
+0.0
+1
+
+MONITOR
+23
+304
+157
+349
+NIL
+barges-delivered
+17
+1
+11
+
+SWITCH
+443
+555
+598
+588
+Allow-Passing?
+Allow-Passing?
+1
+1
+-1000
+
+SLIDER
+1427
+571
+1670
+604
+Outflow-Dam-1
+Outflow-Dam-1
+0
+200000
+20000
+1000
+1
+cfs
+HORIZONTAL
+
+SLIDER
+1428
+611
+1671
+644
+Outflow-Dam-2
+Outflow-Dam-2
+0
+250000
+44000
+1000
+1
+cfs
+HORIZONTAL
+
+SLIDER
+1427
+652
+1670
+685
+Outflow-Dam-3
+Outflow-Dam-3
+0
+250000
+58000
+1000
+1
+cfs
+HORIZONTAL
+
+SLIDER
+1429
+693
+1716
+726
+Outflow-Tributary-Dam
+Outflow-Tributary-Dam
+0
+150000
+0
+1000
+1
+cfs
+HORIZONTAL
+
+SWITCH
+627
+596
+774
+629
+Close-Lock-1
+Close-Lock-1
+1
+1
+-1000
+
+TEXTBOX
+24
+263
+174
+293
+Counters for Running Totals
+12
+0.0
+1
+
+INPUTBOX
+17
+185
+165
+245
+filename
+gmmmm
+1
+0
+String
+
+SLIDER
+627
+466
+771
+499
+Lockage-time-1
+Lockage-time-1
+0
+5
+2
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+796
+466
+940
+499
+Lockage-time-2
+Lockage-time-2
+0
+5
+2
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+627
+508
+771
+541
+Barges-per-lockage-1
+Barges-per-lockage-1
+1
+15
+6
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+796
+509
+938
+542
+Barges-per-lockage-2
+Barges-per-lockage-2
+0
+15
+6
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+796
+550
+937
+583
+Night-Locking-2
+Night-Locking-2
+1
+1
+-1000
+
+SWITCH
+795
+595
+938
+628
+Close-Lock-2
+Close-Lock-2
+1
+1
+-1000
+
+SLIDER
+232
+552
+429
+585
+upstream-speed-target
+upstream-speed-target
+0
+15
+4
+.2
+1
+mph
+HORIZONTAL
+
+SLIDER
+233
+595
+430
+628
+downstream-speed-target
+downstream-speed-target
+0
+15
+5
+.2
+1
+mph
+HORIZONTAL
+
+SLIDER
+1444
+734
+1616
+767
+dam-3-inflow
+dam-3-inflow
+0
+300000
+78500
+500
+1
+cfs
+HORIZONTAL
+
+SLIDER
+22
+508
+216
+541
+Max-Barges
+Max-Barges
+1
+20
+15
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+1465
+527
+1600
+560
+Control-flows?
+Control-flows?
+1
+1
+-1000
+
+@#$#@#$#@
+### General Updates ###
+
+Check Lock Night - i think this is ok - however need to reduce lock list and corresponding inputs to reflect the 2 lock segment used in this version +
+
+Broken passing procedure in 1-25 model fixed +
+
+
+If multiple-bridges ahead and time to clear all bridges > time to night check if time to clear all bridges at original speed  < time to night --> return to original speed +
+
+Tow/Flow - When flow is extremely high stop tows +
+	   when flow is high slow tows (how much?, need Patty's data for this)
+	   
+           ! considering that i have no basis for creating a flow based distribution, maybe remove the dependence on extremely high flows, basically remove all hydrologic based speed changes so we can evaluate just the WAP based ones!
+
+Hydrology - export values to R and calc patch by patch flow and stage using velocity of 	propogation from WC Manuals and steady-state equations with empirical error terms
+
+Water Levels - fix water level and corresponding tow elevations for middle segment
+
+if countdown != 111 or 100 and ycor = 0 set speed zero and countdown +
+
+if speed < min-trailing-distance / 2 ;;;try this on all 0.05 in slowing procedures 
+
+update accident spawning using real data or remove entirely as we don't have enough information to justify assumptions that increased congestion (influenced by WAPS) causes accidents
+
+Try changing tick time
+
+
+###Supply Chain Updates###
+
+Chnage Major Harbor from mulit-chooser to sinlge input +
+
+Harbor - Create a dock at Nashville +
+         ask tows to drop barges there +
+	 ask tows leaving Harbor to pick up barges +
+	 count barges at Harbor+
+Allow passing of fleeting tows?
+
+each shpping request is list [origin destination number-barges commodity]
+
+vessels-available are agent-sets of unique tows that operate on the river and that join the set at one end when a trip is finished
+
+Add pickup time after spawning and drop-off time before dying
+
+Create a loop between upstream end and harbor where vessels that originated on upstream end are stuck in the loop. Allow set percent of upstream headed traffic to continue straight before turning around while most turn around at harbor and go back downstream. 
+Some barges are unloaded at harbor and then return downstream empty (destination is harbor), some barges continue with their current vessel upstream and are unloaded at upstream dock, some barges are fleeted at harbor without unloading and are then picked up by a looping vessel and taken to upstream dock for unloading. Count barge loads delivered by destination (harbor or upstream dock). Some barges arriving from upstream empty may be loaded at harbor before continuing downstream, and some may be loaded at harbor and returned upstream. Some  barges unloaded upstream may be loaded before going downstream and may continue all the way downstream or stop and be unloaded at harbor.
+	Requires: set pt for % continuing vessels
+		destination specific commodities generated at upstream, downstream,harbor
+		set pt for % destination by commodity type  
+		set pt for % origin by commodity type
+		speed variation for empties
+
+Add barges as shipping requests instead of randomly
+Add tows after a shipping request has been processed
+@#$#@#$#@
+default
+true
+0
+Polygon -7500403 true true 150 5 40 250 150 205 260 250
+
+airplane
+true
+0
+Polygon -7500403 true true 150 0 135 15 120 60 120 105 15 165 15 195 120 180 135 240 105 270 120 285 150 270 180 285 210 270 165 240 180 180 285 195 285 165 180 105 180 60 165 15
+
+arrow
+true
+0
+Polygon -7500403 true true 150 0 0 150 105 150 105 293 195 293 195 150 300 150
+
+box
+false
+0
+Polygon -7500403 true true 150 285 285 225 285 75 150 135
+Polygon -7500403 true true 150 135 15 75 150 15 285 75
+Polygon -7500403 true true 15 75 15 225 150 285 150 135
+Line -16777216 false 150 285 150 135
+Line -16777216 false 150 135 15 75
+Line -16777216 false 150 135 285 75
+
+bug
+true
+0
+Circle -7500403 true true 96 182 108
+Circle -7500403 true true 110 127 80
+Circle -7500403 true true 110 75 80
+Line -7500403 true 150 100 80 30
+Line -7500403 true 150 100 220 30
+
+butterfly
+true
+0
+Polygon -7500403 true true 150 165 209 199 225 225 225 255 195 270 165 255 150 240
+Polygon -7500403 true true 150 165 89 198 75 225 75 255 105 270 135 255 150 240
+Polygon -7500403 true true 139 148 100 105 55 90 25 90 10 105 10 135 25 180 40 195 85 194 139 163
+Polygon -7500403 true true 162 150 200 105 245 90 275 90 290 105 290 135 275 180 260 195 215 195 162 165
+Polygon -16777216 true false 150 255 135 225 120 150 135 120 150 105 165 120 180 150 165 225
+Circle -16777216 true false 135 90 30
+Line -16777216 false 150 105 195 60
+Line -16777216 false 150 105 105 60
+
+car
+false
+0
+Polygon -7500403 true true 300 180 279 164 261 144 240 135 226 132 213 106 203 84 185 63 159 50 135 50 75 60 0 150 0 165 0 225 300 225 300 180
+Circle -16777216 true false 180 180 90
+Circle -16777216 true false 30 180 90
+Polygon -16777216 true false 162 80 132 78 134 135 209 135 194 105 189 96 180 89
+Circle -7500403 true true 47 195 58
+Circle -7500403 true true 195 195 58
+
+circle
+false
+0
+Circle -7500403 true true 0 0 300
+
+circle 2
+false
+0
+Circle -7500403 true true 0 0 300
+Circle -16777216 true false 30 30 240
+
+cow
+false
+0
+Polygon -7500403 true true 200 193 197 249 179 249 177 196 166 187 140 189 93 191 78 179 72 211 49 209 48 181 37 149 25 120 25 89 45 72 103 84 179 75 198 76 252 64 272 81 293 103 285 121 255 121 242 118 224 167
+Polygon -7500403 true true 73 210 86 251 62 249 48 208
+Polygon -7500403 true true 25 114 16 195 9 204 23 213 25 200 39 123
+
+cylinder
+false
+0
+Circle -7500403 true true 0 0 300
+
+dot
+false
+0
+Circle -7500403 true true 90 90 120
+
+exclamation
+false
+0
+Circle -7500403 true true 103 198 95
+Polygon -7500403 true true 135 180 165 180 210 30 180 0 120 0 90 30
+
+face happy
+false
+0
+Circle -7500403 true true 8 8 285
+Circle -16777216 true false 60 75 60
+Circle -16777216 true false 180 75 60
+Polygon -16777216 true false 150 255 90 239 62 213 47 191 67 179 90 203 109 218 150 225 192 218 210 203 227 181 251 194 236 217 212 240
+
+face neutral
+false
+0
+Circle -7500403 true true 8 7 285
+Circle -16777216 true false 60 75 60
+Circle -16777216 true false 180 75 60
+Rectangle -16777216 true false 60 195 240 225
+
+face sad
+false
+0
+Circle -7500403 true true 8 8 285
+Circle -16777216 true false 60 75 60
+Circle -16777216 true false 180 75 60
+Polygon -16777216 true false 150 168 90 184 62 210 47 232 67 244 90 220 109 205 150 198 192 205 210 220 227 242 251 229 236 206 212 183
+
+fish
+false
+0
+Polygon -1 true false 44 131 21 87 15 86 0 120 15 150 0 180 13 214 20 212 45 166
+Polygon -1 true false 135 195 119 235 95 218 76 210 46 204 60 165
+Polygon -1 true false 75 45 83 77 71 103 86 114 166 78 135 60
+Polygon -7500403 true true 30 136 151 77 226 81 280 119 292 146 292 160 287 170 270 195 195 210 151 212 30 166
+Circle -16777216 true false 215 106 30
+
+flag
+false
+0
+Rectangle -7500403 true true 60 15 75 300
+Polygon -7500403 true true 90 150 270 90 90 30
+Line -7500403 true 75 135 90 135
+Line -7500403 true 75 45 90 45
+
+flower
+false
+0
+Polygon -10899396 true false 135 120 165 165 180 210 180 240 150 300 165 300 195 240 195 195 165 135
+Circle -7500403 true true 85 132 38
+Circle -7500403 true true 130 147 38
+Circle -7500403 true true 192 85 38
+Circle -7500403 true true 85 40 38
+Circle -7500403 true true 177 40 38
+Circle -7500403 true true 177 132 38
+Circle -7500403 true true 70 85 38
+Circle -7500403 true true 130 25 38
+Circle -7500403 true true 96 51 108
+Circle -16777216 true false 113 68 74
+Polygon -10899396 true false 189 233 219 188 249 173 279 188 234 218
+Polygon -10899396 true false 180 255 150 210 105 210 75 240 135 240
+
+house
+false
+0
+Rectangle -7500403 true true 45 120 255 285
+Rectangle -16777216 true false 120 210 180 285
+Polygon -7500403 true true 15 120 150 15 285 120
+Line -16777216 false 30 120 270 120
+
+leaf
+false
+0
+Polygon -7500403 true true 150 210 135 195 120 210 60 210 30 195 60 180 60 165 15 135 30 120 15 105 40 104 45 90 60 90 90 105 105 120 120 120 105 60 120 60 135 30 150 15 165 30 180 60 195 60 180 120 195 120 210 105 240 90 255 90 263 104 285 105 270 120 285 135 240 165 240 180 270 195 240 210 180 210 165 195
+Polygon -7500403 true true 135 195 135 240 120 255 105 255 105 285 135 285 165 240 165 195
+
+line
+true
+0
+Line -7500403 true 150 0 150 300
+
+line half
+true
+0
+Line -7500403 true 150 0 150 150
+
+pentagon
+false
+0
+Polygon -7500403 true true 150 15 15 120 60 285 240 285 285 120
+
+person
+false
+0
+Circle -7500403 true true 110 5 80
+Polygon -7500403 true true 105 90 120 195 90 285 105 300 135 300 150 225 165 300 195 300 210 285 180 195 195 90
+Rectangle -7500403 true true 127 79 172 94
+Polygon -7500403 true true 195 90 240 150 225 180 165 105
+Polygon -7500403 true true 105 90 60 150 75 180 135 105
+
+plant
+false
+0
+Rectangle -7500403 true true 135 90 165 300
+Polygon -7500403 true true 135 255 90 210 45 195 75 255 135 285
+Polygon -7500403 true true 165 255 210 210 255 195 225 255 165 285
+Polygon -7500403 true true 135 180 90 135 45 120 75 180 135 210
+Polygon -7500403 true true 165 180 165 210 225 180 255 120 210 135
+Polygon -7500403 true true 135 105 90 60 45 45 75 105 135 135
+Polygon -7500403 true true 165 105 165 135 225 105 255 45 210 60
+Polygon -7500403 true true 135 90 120 45 150 15 180 45 165 90
+
+square
+false
+0
+Rectangle -7500403 true true 30 30 270 270
+
+square 2
+false
+0
+Rectangle -7500403 true true 30 30 270 270
+Rectangle -16777216 true false 60 60 240 240
+
+star
+false
+0
+Polygon -7500403 true true 151 1 185 108 298 108 207 175 242 282 151 216 59 282 94 175 3 108 116 108
+
+target
+false
+0
+Circle -7500403 true true 0 0 300
+Circle -16777216 true false 30 30 240
+Circle -7500403 true true 60 60 180
+Circle -16777216 true false 90 90 120
+Circle -7500403 true true 120 120 60
+
+tree
+false
+0
+Circle -7500403 true true 118 3 94
+Rectangle -6459832 true false 120 195 180 300
+Circle -7500403 true true 65 21 108
+Circle -7500403 true true 116 41 127
+Circle -7500403 true true 45 90 120
+Circle -7500403 true true 104 74 152
+
+triangle
+false
+0
+Polygon -7500403 true true 150 30 15 255 285 255
+
+triangle 2
+false
+0
+Polygon -7500403 true true 150 30 15 255 285 255
+Polygon -16777216 true false 151 99 225 223 75 224
+
+truck
+false
+0
+Rectangle -7500403 true true 4 45 195 187
+Polygon -7500403 true true 296 193 296 150 259 134 244 104 208 104 207 194
+Rectangle -1 true false 195 60 195 105
+Polygon -16777216 true false 238 112 252 141 219 141 218 112
+Circle -16777216 true false 234 174 42
+Rectangle -7500403 true true 181 185 214 194
+Circle -16777216 true false 144 174 42
+Circle -16777216 true false 24 174 42
+Circle -7500403 false true 24 174 42
+Circle -7500403 false true 144 174 42
+Circle -7500403 false true 234 174 42
+
+truck-left
+false
+0
+Rectangle -7500403 true true 105 45 296 187
+Polygon -7500403 true true 4 193 4 150 41 134 56 104 92 104 93 194
+Rectangle -1 true false 105 60 105 105
+Polygon -16777216 true false 62 112 48 141 81 141 82 112
+Circle -16777216 true false 24 174 42
+Rectangle -7500403 true true 86 185 119 194
+Circle -16777216 true false 114 174 42
+Circle -16777216 true false 234 174 42
+Circle -7500403 false true 234 174 42
+Circle -7500403 false true 114 174 42
+Circle -7500403 false true 24 174 42
+
+turtle
+true
+0
+Polygon -10899396 true false 215 204 240 233 246 254 228 266 215 252 193 210
+Polygon -10899396 true false 195 90 225 75 245 75 260 89 269 108 261 124 240 105 225 105 210 105
+Polygon -10899396 true false 105 90 75 75 55 75 40 89 31 108 39 124 60 105 75 105 90 105
+Polygon -10899396 true false 132 85 134 64 107 51 108 17 150 2 192 18 192 52 169 65 172 87
+Polygon -10899396 true false 85 204 60 233 54 254 72 266 85 252 107 210
+Polygon -7500403 true true 119 75 179 75 209 101 224 135 220 225 175 261 128 261 81 224 74 135 88 99
+
+wheel
+false
+0
+Circle -7500403 true true 3 3 294
+Circle -16777216 true false 30 30 240
+Line -7500403 true 150 285 150 15
+Line -7500403 true 15 150 285 150
+Circle -7500403 true true 120 120 60
+Line -7500403 true 216 40 79 269
+Line -7500403 true 40 84 269 221
+Line -7500403 true 40 216 269 79
+Line -7500403 true 84 40 221 269
+
+x
+false
+0
+Polygon -7500403 true true 270 75 225 30 30 225 75 270
+Polygon -7500403 true true 30 75 75 30 270 225 225 270
+
+@#$#@#$#@
+NetLogo 3D 5.2-RC3
+@#$#@#$#@
+setup
+repeat 180 [ go ]
+@#$#@#$#@
+@#$#@#$#@
+@#$#@#$#@
+SLIDER
+58
+63
+252
+96
+Horesepower/Barge-Ratio
+Horesepower/Barge-Ratio
+100
+500
+100
+50
+1
+NIL
+HORIZONTAL
+
+SLIDER
+59
+104
+232
+137
+min-trailing-distance
+min-trailing-distance
+0.1
+2
+2
+0.1
+1
+mi
+HORIZONTAL
+
+SLIDER
+60
+143
+245
+176
+min-passing-clearance
+min-passing-clearance
+0.1
+5
+5
+0.1
+1
+mi
+HORIZONTAL
+
+SLIDER
+60
+181
+232
+214
+minimum-speed
+minimum-speed
+0.1
+5
+5
+0.1
+1
+mph
+HORIZONTAL
+
+SLIDER
+60
+220
+232
+253
+maximum-speed
+maximum-speed
+3
+15
+12
+0.2
+1
+NIL
+HORIZONTAL
+
+SLIDER
+60
+259
+244
+292
+upstream-speed-target
+upstream-speed-target
+1
+12
+12
+0.2
+1
+NIL
+HORIZONTAL
+
+SLIDER
+60
+299
+260
+332
+downstream-speed-target
+downstream-speed-target
+3
+12
+12
+0.2
+1
+NIL
+HORIZONTAL
+
+SWITCH
+61
+341
+216
+374
+Mooring-at-Night?
+Mooring-at-Night?
+1
+1
+-1000
+
+SWITCH
+60
+380
+208
+413
+Stop-at-Bridges?
+Stop-at-Bridges?
+1
+1
+-1000
+
+SWITCH
+60
+420
+196
+453
+Allow-Passing?
+Allow-Passing?
+1
+1
+-1000
+
+@#$#@#$#@
+default
+0.0
+-0.2 0 0.0 1.0
+0.0 1 1.0 0.0
+0.2 0 0.0 1.0
+link direction
+true
+0
+
+@#$#@#$#@
+0
+@#$#@#$#@
