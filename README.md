@@ -1,5 +1,5 @@
 # waterway-sim
-*An inland waterway navigation simulation*
+*An inland waterway navigation simulation. NOTE: This model is still under development. Validation procedures have not been completed for this model. There are no guarantees as to it's accuracy.*
 
 This repo holds the code (Netlogo) for an agent-based model of inland waterway tow traffic in the context of extreme weather events conceptualized in 
 
