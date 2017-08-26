@@ -1,5 +1,7 @@
 # waterway-sim
-*An inland waterway navigation simulation. NOTE: This model is still under development. Validation procedures have not been completed for this model. There are no guarantees as to it's accuracy.*
+*An inland waterway navigation simulation. 
+
+NOTE: This model is still under development. Validation procedures have not been completed for this model. There are no guarantees as to it's accuracy.*
 
 This repo holds the code (Netlogo) for an agent-based model of inland waterway tow traffic in the context of extreme weather events conceptualized in 
 
@@ -19,6 +21,8 @@ To run model:
 4. Go to the River Setup Tab set location of locks and dams
 5. Go back to the Interface tab and click go
 
+If you use this model code please cite 
 
+>Nelson, K. S., Camp, J. V., Philip, C. E., & Abkowitz, M. D. (2017). Agent-Based Model of Navigable Inland Waterway Tow Operation Procedures. Transportation Research Record: Journal of the Transportation Research Board, (2611), 11-18.
 
 
