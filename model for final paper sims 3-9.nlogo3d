@@ -2557,59 +2557,8 @@ Control-flows?
 -1000
 
 @#$#@#$#@
-### General Updates ###
-
-Check Lock Night - i think this is ok - however need to reduce lock list and corresponding inputs to reflect the 2 lock segment used in this version +
-
-Broken passing procedure in 1-25 model fixed +
-
-
-If multiple-bridges ahead and time to clear all bridges > time to night check if time to clear all bridges at original speed  < time to night --> return to original speed +
-
-Tow/Flow - When flow is extremely high stop tows +
-	   when flow is high slow tows (how much?, need Patty's data for this)
-	   
-           ! considering that i have no basis for creating a flow based distribution, maybe remove the dependence on extremely high flows, basically remove all hydrologic based speed changes so we can evaluate just the WAP based ones!
-
-Hydrology - export values to R and calc patch by patch flow and stage using velocity of 	propogation from WC Manuals and steady-state equations with empirical error terms
-
-Water Levels - fix water level and corresponding tow elevations for middle segment
-
-if countdown != 111 or 100 and ycor = 0 set speed zero and countdown +
-
-if speed < min-trailing-distance / 2 ;;;try this on all 0.05 in slowing procedures 
-
-update accident spawning using real data or remove entirely as we don't have enough information to justify assumptions that increased congestion (influenced by WAPS) causes accidents
-
-Try changing tick time
-
-
-###Supply Chain Updates###
-
-Chnage Major Harbor from mulit-chooser to sinlge input +
-
-Harbor - Create a dock at Nashville +
-         ask tows to drop barges there +
-	 ask tows leaving Harbor to pick up barges +
-	 count barges at Harbor+
-Allow passing of fleeting tows?
-
-each shpping request is list [origin destination number-barges commodity]
-
-vessels-available are agent-sets of unique tows that operate on the river and that join the set at one end when a trip is finished
-
-Add pickup time after spawning and drop-off time before dying
-
-Create a loop between upstream end and harbor where vessels that originated on upstream end are stuck in the loop. Allow set percent of upstream headed traffic to continue straight before turning around while most turn around at harbor and go back downstream. 
-Some barges are unloaded at harbor and then return downstream empty (destination is harbor), some barges continue with their current vessel upstream and are unloaded at upstream dock, some barges are fleeted at harbor without unloading and are then picked up by a looping vessel and taken to upstream dock for unloading. Count barge loads delivered by destination (harbor or upstream dock). Some barges arriving from upstream empty may be loaded at harbor before continuing downstream, and some may be loaded at harbor and returned upstream. Some  barges unloaded upstream may be loaded before going downstream and may continue all the way downstream or stop and be unloaded at harbor.
-	Requires: set pt for % continuing vessels
-		destination specific commodities generated at upstream, downstream,harbor
-		set pt for % destination by commodity type  
-		set pt for % origin by commodity type
-		speed variation for empties
-
-Add barges as shipping requests instead of randomly
-Add tows after a shipping request has been processed
+### General ###
+Need to add ODD
 @#$#@#$#@
 default
 true
