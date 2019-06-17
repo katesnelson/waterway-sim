@@ -1,0 +1,308 @@
+---
+title: "Data_sort"
+author: "Miguel Moravec"
+date: "May 16, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(pacman)
+p_load(zoo, tidyverse, lubridate, readxl, stringr, janitor, dplyr)
+
+```
+
+```{r load_sort_data}
+
+############################
+### PLACE FILE NAME HERE ###
+############################
+
+input = "rivermileCG2013.csv"
+
+############################
+########### RUN ############
+############################
+
+#reads in data
+
+data = read_csv(input)
+
+#establishes naming convention
+
+name = substring(input,12,(as.integer(nchar(input))))
+
+#sorts by boat id and date and removes irrelavant vessels by type
+
+data2 = data[order(data$MMSI, data$PositionTi),]
+
+data2 = filter(data2, VesselType == 'Tug' | VesselType == 'Vessel' | VesselType == 'Tanker')
+
+#calcs diff in rivermile marker for each value per boat
+
+data2 = data2 %>% group_by(MMSI) %>%
+  mutate(diff = ave(RiverMile, MMSI, FUN=function(x) c(0, diff(x))))
+
+data2$diff_mag=1
+
+#data2
+
+#this loop identifies the sign of the difference justed calc'ed, to be used as identifier for tow_id
+
+a=2
+data2$cat = 0
+
+while (a<=nrow(data2)) {
+  
+  data2$diff_mag[a] = sign(data2$diff[a])
+  
+  date = toString(data2$PositionTi[a])
+  date_prev = toString(data2$PositionTi[a-1])
+  
+  #even if no progress made in a given time interval
+  #this statement ensures that a value 'remembers' which direction it was going
+  
+  if (data2$diff_mag[a] == 0) {
+    data2$diff_mag[a] = data2$diff_mag[a-1]
+  }
+  
+  #identifies when vessels change 
+  if (data2$MMSI[a] != data2$MMSI[a-1]) {
+    data2$diff_mag[a] = data2$diff_mag[a] * -1
+
+
+  #identifies if at least 25-48 hours have passed between two values (two calendar days)
+  } else if (as.Date(date) >= as.Date(date_prev) + days(2)) {
+      data2$cat[a] = 1
+      
+      #print("")
+      #print(data2$MMSI[a-1])
+      #print(date_prev)
+      #print(data2$MMSI[a])
+      #print(date)
+      #print("")
+  }
+  a = a + 1
+}
+
+data2
+
+#makes new column
+
+data2$tow_id<-0
+
+#makes list of values at which sign changes
+
+pos <- head(cumsum(rle(data2$diff_mag >= 0)$lengths), -1)
+head(pos)
+
+x = 1
+y = 1
+q = nrow(data2)
+
+#assigns tow id for every point at which sign changes AND for every new boat
+
+
+while (x<=q) {
+  #detects sign/heading change from 'pos' list and updates with new tow id
+  #creates a duplicate row to end the 'old' tow id at proper location
+
+  if (x %in% pos == TRUE) {
+    y = y + 1
+    data2$tow_id[x] = y
+    data2$tow_id[x+1] = y + 1
+    data2[nrow(data2) + 1,] = data2[x,]
+    data2$tow_id[nrow(data2)] = data2$tow_id[x] - 1
+    data2$diff_mag[x] = -1 * data2$diff_mag[x]
+    
+  }
+  else {
+    #handles data[1]
+    if (x == 1) {
+      data2$tow_id[x] = 1
+    }
+    
+    else {
+      #keeps tow id same if above if statements not met
+      data2$tow_id[x] = data2$tow_id[x-1]
+      
+    }
+    if (data2$cat[x] == 1) {
+    y = y + 1
+    data2$tow_id[x] = y
+    data2$tow_id[x+1] = y + 1
+    data2[nrow(data2) + 1,] = data2[x,]
+    data2$tow_id[nrow(data2)] = data2$tow_id[x] - 1
+    data2$cat[x] = 0
+    }
+  }
+    
+  x = x + 1
+}
+
+#data2
+
+data2 = data2 %>% 
+  arrange(desc(-tow_id)) %>%
+  select("MMSI", "PositionTi", "RiverMile", "diff","diff_mag", "tow_id", "cat")
+
+#data2
+
+#this loop identifies residual tow_ids that conflate two vessels in one trip or took place over 2 months apart
+
+xx = 2
+
+while (xx < nrow(data2)) {
+
+  
+  if (data2$MMSI[xx] != data2$MMSI[xx - 1]) {
+    data2$tow_id[xx - 1] = 0
+  }
+  
+  else if (data2$cat[xx] == 1 & sign(data2$diff_mag[xx] == sign(data2$diff_mag[xx-1]))) {
+    data2$tow_id[xx] = 0
+  }
+  
+  xx = xx + 1
+}
+
+#removes residual tows
+
+data2 = data2 %>% 
+  filter(tow_id != 0)
+          
+#data2
+
+```
+
+
+
+``` {r heading}
+
+#simply takes numeric diff_mag value and generates new column 'heading' with up/downstream info for each value
+#'heading' is the same for each set of values in a tug id, by definition of tug id
+
+data2$heading = NA
+
+z=1
+
+while (z<=nrow(data2)) {
+ if (sign(data2$diff_mag[z]) == 1) {
+   data2$heading[z] = "Downstream"
+ }
+ if (sign(data2$diff_mag[z]) == -1){
+   data2$heading[z] = "Upstream"
+ }
+  z=z+1
+}
+
+#data2[, c("MMSI", "RiverMile", "diff", "tow_id", "heading")]
+```
+```{r useful_log}
+
+#data2
+
+data3 = data2 %>% group_by(tow_id) %>%
+  select(MMSI, PositionTi, RiverMile, tow_id, heading) %>%
+  slice(c(1, n())) %>%
+  mutate(max_dist = abs(RiverMile[1]-RiverMile[2])) %>%
+  mutate(dist_start = RiverMile[1]) %>%
+  mutate(dist_end = RiverMile[2]) %>%
+  mutate(max_time = PositionTi[2]-PositionTi[1]) %>%
+  mutate(max_time_start = PositionTi[1]) %>%
+  mutate(max_time_end = PositionTi[2]) %>%
+  mutate(Heading = heading[1])
+
+#min_time_end, the first time that the vessel is in the final RiverMile
+data4 = data2 %>% group_by(tow_id) %>%
+  select(PositionTi, RiverMile, tow_id) %>%
+  filter(RiverMile == RiverMile[n()]) %>%
+  filter(PositionTi == PositionTi[1]) %>%
+  mutate(min_time_end = PositionTi) %>%
+  select(tow_id, min_time_end)
+
+#min_time_start, the last time that the vessel is in the initial RiverMile
+data5 = data2 %>% group_by(tow_id) %>%
+  select(PositionTi, RiverMile, tow_id) %>%
+  filter(RiverMile == RiverMile[1]) %>%
+  filter(PositionTi == PositionTi[n()]) %>%
+  mutate(min_time_start = PositionTi) %>%
+  select(tow_id, min_time_start)
+
+###for comparison of times
+#data2
+#data3
+#data4
+#data5
+
+data3 = left_join(data3, data4, by = 'tow_id')
+data3 = left_join(data3, data5, by = 'tow_id')
+
+#filters out trips that did not change river miles and trips moving at speeds greater than 15kts
+
+data3 = data3 %>%
+  filter(max_dist != 0) %>%
+  group_by(tow_id) %>%
+  slice(c(1, n())) %>%
+  mutate(trip_hours_min = (min_time_end[1] - min_time_start[1])/(60*60)) %>%
+  mutate(speed = max_dist[1]/as.numeric(trip_hours_min[1])) %>%
+  filter(speed < 15)
+
+data_upstream = data3  %>% filter(heading == "Upstream") %>%
+  group_by(tow_id) %>% summarize(MMSI = MMSI[1], start_mile = dist_start[1], end_mile = dist_end[1], start_time = min_time_start[1], end_time = min_time_end[1], heading = Heading[1], max_dist_trav = max_dist[1], unrounded_start = max_time_start[1])
+  
+data_downstream = data3  %>% filter(heading == "Downstream") %>%
+  group_by(tow_id) %>% summarize(MMSI = MMSI[1], start_mile = dist_start[1], end_mile = dist_end[1], start_time = min_time_start[1], end_time = min_time_end[1], heading = Heading[1], max_dist_trav = max_dist[1], unrounded_start = max_time_start[1])
+
+#rounds to nearest 30
+
+data_upstream$start_time = lubridate::round_date(data_upstream$start_time, "30 minutes")
+data_upstream$end_time = lubridate::round_date(data_upstream$end_time, "30 minutes")
+
+data_downstream$start_time = lubridate::round_date(data_downstream$start_time, "30 minutes")
+data_downstream$end_time = lubridate::round_date(data_downstream$end_time, "30 minutes")
+
+#filters out start and end times that are the same
+
+data_upstream = data_upstream %>%
+  filter(start_time != end_time)
+
+data_upstream
+
+data_downstream = data_downstream %>%
+  filter(start_time != end_time)
+
+data_downstream
+```
+```{r exact_formatting}
+
+up = data_upstream %>% group_by(tow_id) %>%
+  summarize(timestamp = start_time, arrival = start_time, departure = end_time, name = tow_id, link1tt = 0, link2tt
+ = 0, link3tt = 0, link4tt = 0, origin = start_mile, destination = end_mile, arrival_orig = unrounded_start) %>%
+  select(-tow_id)
+
+down = data_downstream %>% group_by(tow_id) %>%
+  summarize(timestamp = start_time, arrival = start_time, departure = end_time, name = tow_id, link1tt = 0, link2tt
+ = 0, link3tt = 0, link4tt = 0, origin = start_mile, destination = end_mile, arrival_orig = unrounded_start) %>%
+  select(-tow_id)
+
+#up
+#down
+
+#converts datetime objects to correct format for NETLOGO
+
+down$timestamp<-as.POSIXlt (down$timestamp, tz ="GMT", "%m/%d/%y %H:%M" )
+down$arrival<-as.POSIXlt (down$arrival, tz ="GMT", "%m/%d/%y %H:%M" )
+down$arrival_orig<-as.POSIXlt (down$arrival_orig, tz ="GMT", "%m/%d/%y %H:%M" )
+down$departure<-as.POSIXlt (down$departure, tz ="GMT", "%m/%d/%y %H:%M" )
+
+up$timestamp<-as.POSIXlt (up$timestamp, tz ="GMT", "%m/%d/%y %H:%M" )
+up$arrival<-as.POSIXlt (up$arrival, tz ="GMT", "%m/%d/%y %H:%M" )
+up$arrival_orig<-as.POSIXlt (up$arrival_orig, tz ="GMT", "%m/%d/%y %H:%M" )
+up$departure<-as.POSIXlt (up$departure, tz ="GMT", "%m/%d/%y %H:%M" )
+
+#writes csv using automated naming convention
+
+write.csv(up, paste("upstreaming", name, sep=""), row.names=FALSE)
+write.csv(down, paste("downstreaming", name, sep=""), row.names=FALSE)
+```
