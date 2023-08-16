@@ -1,5 +1,5 @@
 # waterway-sim
-*An inland waterway navigation simulation. NOTE: This model is still under development. Validation procedures have not been completed for this model. There are no guarantees as to its accuracy.*
+*An inland waterway navigation simulation. NOTE: Validation procedures were completed for this model in 2020 using Ohio River 2013 and 2014 AIS barge data as reported in ["Utilizing agent-based modeling to evaluate operational impacts of an incident and possible alternatives on US waterways"](https://doi.org/10.1177/0361198120941504). However there are no guarantees as to its accuracy in other situations.*
 
 This repo holds the code (Netlogo) for an agent-based model of inland waterway tow traffic in the context of extreme weather events conceptualized in 
 
